@@ -2,19 +2,79 @@
 import pandas as pd
 import numpy as np
 import logging
+from sklearn.metrics import calinski_harabasz_score
+from .utils import clean_fixations, merge_close_fixations
+from .detection_algorithms import classify_idt, classify_ivt
+
+
+def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, candidate_thresholds=None):
+    """
+    Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
+
+    Args:
+        gaze_data (pd.DataFrame): DataFrame with ['x', 'y', 'timestamp'] columns.
+        min_fixation_duration (float): Minimum fixation duration in ms.
+        adapt (bool): Whether to adapt the dispersion threshold based on velocity.
+        candidate_thresholds (list, optional): List of dispersion thresholds to test.
+
+    Returns:
+        float: Best threshold according to Calinski-Harabasz score.
+    """
+    # TODO: Ask: use real candidate thresholds based on data characteristics?
+    if candidate_thresholds is None:
+        candidate_thresholds = [125, 150, 175, 200, 225, 250, 275, 300]
+
+    best_score = -np.inf
+    best_threshold = candidate_thresholds[0]
+
+    for threshold in candidate_thresholds:
+        try:
+            # TODO: I-VT implementation
+            # Run I-DT classification
+            classified_df = classify_idt(
+                gaze_data.copy(),
+                dispersion_threshold=threshold,
+                min_fixation_duration=min_fixation_duration,
+                adapt=adapt
+            )
+
+            # Extract valid fixation points
+            fixation_mask = classified_df['event_type'] == 'Fixation'
+            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
+
+            # Get cluster labels (fixation IDs)
+            labels = classified_df[fixation_mask]['fixation_id'].values
+
+            # Need at least 2 fixations to compute CH score
+            if len(np.unique(labels)) < 2:
+                continue
+
+            # Compute Calinski-Harabasz score
+            score = calinski_harabasz_score(fixation_points, labels)
+
+            if score > best_score:
+                best_score = score
+                best_threshold = threshold
+
+        except Exception as e:
+            print(f"Error with threshold {threshold}: {str(e)}")
+            continue
+
+    return best_threshold
+
 
 def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None, algorithm=None,
-                threshold=150.0, optimize_threshold=False, adapt=False):
+                threshold=150.0, adapt=False, optimize=False):
     """Detects events in the loaded gaze data using the specified algorithm.
 
     Args:
         plot (bool): Whether to plot the event segmentation.
         min_fixation_duration (float): Minimum duration for a fixation (in milliseconds).
         aois (pd.DataFrame): Areas of interest for AOI classification.
-        algorithm (str): Event detection algorithm ('ivt' or 'idt'-default).
+        algorithm (str): Event detection algorithm ('idt'-default or 'ivt').
         threshold (float): Threshold (for 'idt' or 'ivt' algorithm, in pixels).
         adapt (bool): Whether to adapt the threshold based on velocity.
-        optimize_threshold (bool): Whether to optimize the dispersion threshold.
+        optimize (bool): Whether to optimize the dispersion threshold.
 
     Returns:
         pd.DataFrame: Processed gaze data with event classifications.
@@ -25,24 +85,24 @@ def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None, algori
 
     try:
         if algorithm == 'idt':
-            if optimize_threshold:
+            if optimize:
                 # Find the best dispersion threshold using optimization
-                best_thresh = self.optimize_threshold(self.gaze_data, adapt=adapt)
+                best_thresh = optimize_threshold(self.gaze_data, adapt=adapt)
                 print(f"Best Threshold:{best_thresh}")
                 # Run I-DT with the best threshold
-                data = self.classify_idt(self.gaze_data, dispersion_threshold=best_thresh,
+                data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh,
                                             min_fixation_duration=min_fixation_duration, adapt=adapt)
             else:
-                data = self.classify_idt(self.gaze_data, dispersion_threshold=threshold,
+                data = classify_idt(self.gaze_data, dispersion_threshold=threshold,
                                             min_fixation_duration=min_fixation_duration, adapt=adapt)
         elif algorithm == 'ivt':
-            if optimize_threshold:
-                best_thresh = self.optimize_threshold(self.gaze_data, adapt=adapt)
+            if optimize:
+                best_thresh = optimize_threshold(self.gaze_data, adapt=adapt)
                 print(f"Best Threshold:{best_thresh}")
-                data = self.classify_ivt(self.gaze_data, velocity_threshold=best_thresh,
+                data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
             else:
-                data = self.classify_ivt(self.gaze_data, velocity_threshold=threshold,
+                data = classify_ivt(self.gaze_data, velocity_threshold=threshold,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -53,14 +113,14 @@ def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None, algori
 
     # Assign each fixation to an AOI if AOIs are provided
     if aois is not None:
-        data = self.classify_aoi(data, aois)
+        data = classify_aoi(data, aois)
 
     return data
 
 
 def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=None,
                             algorithm=None, threshold=150.0, merge_distance=100.0, adapt=False,
-                            optimize_threshold=False, return_threshold=False):
+                            optimize=False, return_threshold=False):
     """
     Detects events in the loaded gaze data using the specified algorithm and merges close fixations.
 
@@ -72,7 +132,7 @@ def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=N
         threshold (float): Threshold (for 'idt' or 'ivt' algorithm, in pixels).
         merge_distance (float): Maximum distance for merging consecutive fixations.
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
-        optimize_threshold (bool): Whether to optimize the dispersion threshold.
+        optimize (bool): Whether to optimize the dispersion threshold.
         return_threshold (bool): Whether to return the optimized threshold.
 
     Returns:
@@ -84,31 +144,31 @@ def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=N
     try:
         # First detect events using the original algorithm
         if algorithm == 'idt':
-            if optimize_threshold:
-                best_thresh = self.optimize_threshold(self.gaze_data, adapt=adapt)
+            if optimize:
+                best_thresh = optimize(self.gaze_data, adapt=adapt)
                 print(f"Best Threshold:{best_thresh}")
-                data = self.classify_idt(self.gaze_data, dispersion_threshold=best_thresh,
+                data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
             else:
-                data = self.classify_idt(self.gaze_data, dispersion_threshold=threshold,
+                data = classify_idt(self.gaze_data, dispersion_threshold=threshold,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
         elif algorithm == 'ivt':
-            if optimize_threshold:
-                best_thresh = self.optimize_threshold(self.gaze_data, adapt=adapt)
+            if optimize:
+                best_thresh = optimize(self.gaze_data, adapt=adapt)
                 print(f"Best Threshold:{best_thresh}")
-                data = self.classify_ivt(self.gaze_data, velocity_threshold=best_thresh,
+                data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
             else:
-                data = self.classify_ivt(self.gaze_data, velocity_threshold=threshold,
+                data = classify_ivt(self.gaze_data, velocity_threshold=threshold,
                                         min_fixation_duration=min_fixation_duration, adapt=adapt)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
         # Merge close fixations
-        data = self.merge_close_fixations(data, distance_threshold=merge_distance)
+        data = merge_close_fixations(data, distance_threshold=merge_distance)
 
         if aois is not None:
-            data = self.classify_aoi(data, aois)
+            data = classify_aoi(data, aois)
 
     except Exception as e:
         logging.error(f"Error detecting events: {e}")
@@ -315,10 +375,10 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     return gaze_data
 
 
-def process_event_with_merge(self, output_dir, plot=True,
+def process_event(self, output_dir, plot=True,
                             min_fixation_duration=50.0, aoi_file_path=None, algorithm=None,
                             merge_distance: float = None, threshold=150.0, adapt=False,
-                            optimize_threshold=False, duration_cutoff: float = None):
+                            optimize=False, duration_cutoff: float = None):
     """
     Processes event detection for a single user and image with fixation merging and stores the output.
 
@@ -331,7 +391,7 @@ def process_event_with_merge(self, output_dir, plot=True,
         merge_distance (float): Maximum distance for merging consecutive fixations.
         threshold (float): Threshold for the I-DT or I-VTS algorithm.
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
-        optimize_threshold (bool): Whether to optimize the dispersion threshold.
+        optimize (bool): Whether to optimize the dispersion threshold.
         duration_cutoff (float): Optional duration cutoff.
 
     Returns:
@@ -350,7 +410,8 @@ def process_event_with_merge(self, output_dir, plot=True,
             self.gaze_data["timestamp"] = self.gaze_data["timestamp"] - t0
 
     if merge_distance:
-        event_gaze = self.detect_event_with_merge(
+        event_gaze = detect_event_with_merge(
+            self,
             plot=plot,
             min_fixation_duration=min_fixation_duration,
             aois=aois,
@@ -358,10 +419,11 @@ def process_event_with_merge(self, output_dir, plot=True,
             merge_distance=merge_distance,
             threshold=threshold,
             adapt=adapt,
-            optimize_threshold=optimize_threshold
+            optimize=optimize
         )
     else:
-        event_gaze = self.detect_event(
+        event_gaze = detect_event(
+            self,
             plot=plot,
             min_fixation_duration=min_fixation_duration,
             aois=aois,
@@ -370,7 +432,7 @@ def process_event_with_merge(self, output_dir, plot=True,
         )
 
     if event_gaze is not None:
-        event_gaze = self.clean_fixations(event_gaze)
+        event_gaze = clean_fixations(event_gaze)
         event_gaze.to_csv(output_dir, index=False, sep=';')
         logging.info(f"Processed and saved event data in {output_dir}")
         return True

@@ -1,4 +1,4 @@
-# Import all submodule functions for class wiring
+
 from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
@@ -31,15 +31,8 @@ class EventDetection:
 
         # Bind external functions as methods
         self.detect_event = detect_event.__get__(self)
-        self.classify_idt = classify_idt.__get__(self)
-        self.classify_ivt = classify_ivt.__get__(self)
-        self.merge_close_fixations = merge_close_fixations.__get__(self)
         self.detect_event_with_merge = detect_event_with_merge.__get__(self)
         self.classify_aoi = classify_aoi.__get__(self)
-        self.clean_fixations = clean_fixations.__get__(self)
-        self.optimize_threshold = optimize_threshold.__get__(self)
-        self.compute_velocity = compute_velocity.__get__(self)
-        self.compute_mad = compute_mad.__get__(self)
-        self.process_event_with_merge = process_event_with_merge.__get__(self)
+        self.process_event = process_event.__get__(self)
 
 __all__ = ["EventDetection"]

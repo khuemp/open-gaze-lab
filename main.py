@@ -22,13 +22,13 @@ if __name__ == '__main__':
     # Output path (same directory, different name)
     output_path = os.path.join(script_dir, 'fixations.csv')
 
-    event_detection.process_event_with_merge(output_dir=output_path,
+    event_detection.process_event(output_dir=output_path,
                                              plot=False,
                                              min_fixation_duration=50.0,
                                              merge_distance=None,
                                              threshold=25.0,
                                              adapt=False,
-                                             optimize_threshold=False,
+                                             optimize=False,
                                              algorithm='idt')
 
     print(f"Processing complete! Output written to {output_path}")

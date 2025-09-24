@@ -1,8 +1,7 @@
 
 import numpy as np
-from sklearn.metrics import calinski_harabasz_score
 
-def compute_velocity(self, df):
+def compute_velocity(df):
     """
     Compute velocity for variable framerate data (5-30fps).
     No modifications to original timestamps or data.
@@ -35,7 +34,7 @@ def compute_velocity(self, df):
     return velocity
 
 
-def compute_mad(self, velocity):
+def compute_mad(velocity):
     """
     Compute Median Absolute Deviation (MAD) with robust handling.
 
@@ -69,63 +68,7 @@ def compute_mad(self, velocity):
     return mad
 
 
-def optimize_threshold(self, gaze_data, min_fixation_duration=50, adapt=False, candidate_thresholds=None):
-    """
-    Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
-
-    Args:
-        gaze_data (pd.DataFrame): DataFrame with ['x', 'y', 'timestamp'] columns.
-        min_fixation_duration (float): Minimum fixation duration in ms.
-        adapt (bool): Whether to adapt the dispersion threshold based on velocity.
-        candidate_thresholds (list, optional): List of dispersion thresholds to test.
-
-    Returns:
-        float: Best threshold according to Calinski-Harabasz score.
-    """
-    # TODO: Ask: use real candidate thresholds based on data characteristics?
-    if candidate_thresholds is None:
-        candidate_thresholds = [125, 150, 175, 200, 225, 250, 275, 300]
-
-    best_score = -np.inf
-    best_threshold = candidate_thresholds[0]
-
-    for threshold in candidate_thresholds:
-        try:
-            # TODO: I-VT implementation
-            # Run I-DT classification
-            classified_df = self.classify_idt(
-                gaze_data.copy(),
-                dispersion_threshold=threshold,
-                min_fixation_duration=min_fixation_duration,
-                adapt=adapt
-            )
-
-            # Extract valid fixation points
-            fixation_mask = classified_df['event_type'] == 'Fixation'
-            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
-
-            # Get cluster labels (fixation IDs)
-            labels = classified_df[fixation_mask]['fixation_id'].values
-
-            # Need at least 2 fixations to compute CH score
-            if len(np.unique(labels)) < 2:
-                continue
-
-            # Compute Calinski-Harabasz score
-            score = calinski_harabasz_score(fixation_points, labels)
-
-            if score > best_score:
-                best_score = score
-                best_threshold = threshold
-
-        except Exception as e:
-            print(f"Error with threshold {threshold}: {str(e)}")
-            continue
-
-    return best_threshold
-
-
-def clean_fixations(self, events_df):
+def clean_fixations(events_df):
     """
     Cleans and formats the fixation events DataFrame for output.
 
@@ -169,7 +112,7 @@ def clean_fixations(self, events_df):
     return events_df
 
 
-def merge_close_fixations(self, gaze_data, distance_threshold=100.0):
+def merge_close_fixations(gaze_data, distance_threshold=100.0):
     """
     Merges consecutive fixations that are close to each other.
 
