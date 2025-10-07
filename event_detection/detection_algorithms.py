@@ -187,7 +187,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         if window_duration_seconds >= min_duration_seconds:
             event_type[start_idx:end_idx + 1] = 'Fixation'
 
-            # Calculate fixation center (reuse your code)
+            # Calculate fixation center
             fix_x = np.mean(x[start_idx:end_idx + 1]) / 640
             fix_y = np.mean(y[start_idx:end_idx + 1]) / 480
 
