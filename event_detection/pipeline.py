@@ -258,55 +258,9 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     return gaze_data
 
 
-def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None, algorithm=None,
-                threshold=150.0, adapt=False, optimize=False):
-    """Detects events in the loaded gaze data using the specified algorithm.
-
-    Args:
-        plot (bool): Whether to plot the event segmentation.
-        min_fixation_duration (float): Minimum duration for a fixation (in milliseconds).
-        aois (pd.DataFrame): Areas of interest for AOI classification.
-        algorithm (str): Event detection algorithm ('idt'-default or 'ivt').
-        threshold (float): Threshold (for 'idt' or 'ivt' algorithm, in pixels).
-        adapt (bool): Whether to adapt the threshold based on velocity.
-        optimize (bool): Whether to optimize the dispersion threshold.
-
-    Returns:
-        pd.DataFrame: Processed gaze data with event classifications.
-
-    """
-    if not self.is_valid_data:
-        return None
-    
-    # Find the best dispersion threshold using optimization
-    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt) if optimize else threshold
-    print(f"Best Threshold:{best_thresh}")
-
-    try:
-        if algorithm == 'idt':
-            # Run I-DT with the best threshold
-            data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh,
-                                        min_fixation_duration=min_fixation_duration, adapt=adapt)
-        elif algorithm == 'ivt':
-                data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh,
-                                        min_fixation_duration=min_fixation_duration, adapt=adapt)
-        else:
-            raise ValueError(f"Unsupported algorithm: {algorithm}")
-
-    except Exception as e:
-        logging.error(f"Error detecting events: {e}")
-        return None
-
-    # Assign each fixation to an AOI if AOIs are provided
-    if aois is not None:
-        data = classify_aoi(data, aois)
-
-    return data
-
-
-def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=None,
+def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
                             algorithm=None, threshold=150.0, merge_distance=100.0, adapt=False,
-                            optimize=False, return_threshold=False):
+                            optimize=False):
     """
     Detects events in the loaded gaze data using the specified algorithm and merges close fixations.
 
@@ -319,7 +273,6 @@ def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=N
         merge_distance (float): Maximum distance for merging consecutive fixations.
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
         optimize (bool): Whether to optimize the dispersion threshold.
-        return_threshold (bool): Whether to return the optimized threshold.
 
     Returns:
         pd.DataFrame: Processed gaze data with event classifications and merged fixations.
@@ -343,7 +296,8 @@ def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=N
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
         # Merge close fixations
-        data = merge_close_fixations(data, distance_threshold=merge_distance)
+        if merge_distance is not None:
+            data = merge_close_fixations(data, distance_threshold=merge_distance)
 
         if aois is not None:
             data = classify_aoi(data, aois)
@@ -352,10 +306,7 @@ def detect_event_with_merge(self, plot=False, min_fixation_duration=50.0, aois=N
         logging.error(f"Error detecting events: {e}")
         return None
 
-    if return_threshold:
-        return data, best_thresh
-
-    return data
+    return data, best_thresh
 
 
 def process_event(self, output_dir, plot=True,
@@ -391,28 +342,17 @@ def process_event(self, output_dir, plot=True,
             self.gaze_data = self.gaze_data.loc[self.gaze_data["timestamp"] >= start_threshold].reset_index(drop=True)
             t0 = self.gaze_data["timestamp"].iloc[0]
             self.gaze_data["timestamp"] = self.gaze_data["timestamp"] - t0
-
-    if merge_distance:
-        event_gaze = detect_event_with_merge(
-            self,
-            plot=plot,
-            min_fixation_duration=min_fixation_duration,
-            aois=aois,
-            algorithm=algorithm,
-            merge_distance=merge_distance,
-            threshold=threshold,
-            adapt=adapt,
-            optimize=optimize
-        )
-    else:
-        event_gaze = detect_event(
-            self,
-            plot=plot,
-            min_fixation_duration=min_fixation_duration,
-            aois=aois,
-            algorithm=algorithm,
-            threshold=threshold,
-        )
+    event_gaze, best_thresh = detect_event(
+        self,
+        plot=plot,
+        min_fixation_duration=min_fixation_duration,
+        aois=aois,
+        algorithm=algorithm,
+        merge_distance=merge_distance,
+        threshold=threshold,
+        adapt=adapt,
+        optimize=optimize
+    )
 
     if event_gaze is not None:
         event_gaze = clean_fixations(event_gaze)

@@ -67,7 +67,7 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, e
     return result_data
 
 
-def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50.0, adapt=False):
+def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50.0/1000, adapt=False):
     """
     Classifies gaze points into fixations and saccades using the I-DT algorithm.
     I-DT computes position of points in space and classifies points that are close together (low dispersion) as fixations.
@@ -76,7 +76,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
     Args:
         gaze_data (pd.DataFrame): DataFrame containing gaze data with 'x', 'y', and 'timestamp' columns.
         dispersion_threshold (float): Maximum allowed dispersion within a fixation window (in pixels).
-        min_fixation_duration (float): Minimum duration (in milliseconds) for a fixation to be considered valid.
+        min_fixation_duration (float): Minimum duration (in seconds) for a fixation to be considered valid.
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
 
     Returns:
@@ -88,9 +88,6 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
 
     start_idx = 0
     fixation_id = 1
-
-    # Convert min_fixation_duration from milliseconds to seconds for comparison with timestamps
-    min_duration_seconds = min_fixation_duration / 1000.0
 
     while start_idx < n:
         current_idx = start_idx
@@ -122,7 +119,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
         window_duration_seconds = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Check if window meets minimum fixation duration
-        if window_duration_seconds >= min_duration_seconds:
+        if window_duration_seconds >= min_fixation_duration:
             # Classify as fixation
             event_type[start_idx:end_idx + 1] = 'Fixation'
             
@@ -142,7 +139,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids)
 
 
-def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0, adapt=False):
+def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0/1000, adapt=False):
     """
     Classifies gaze points into fixations and saccades using the I-VT algorithm.
     I-VT computes point-to-point velocities and classifies points as fixations if velocity is below a threshold.
@@ -151,7 +148,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
     Args:
         gaze_data (pd.DataFrame): Input gaze data with columns 'x','y','timestamp'. x,y assumed normalized [0,1].
         velocity_threshold (float): Maximum allowed velocity (pixels/second) for points considered in a fixation.
-        min_fixation_duration (float): Minimum fixation duration in milliseconds.
+        min_fixation_duration (float): Minimum fixation duration in seconds.
         adapt (bool): If True, adapt the velocity_threshold based on MAD of velocities.
 
     Returns:
@@ -163,9 +160,6 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
 
     start_idx = 0
     fixation_id = 1
-
-    # Convert min_fixation_duration from milliseconds to seconds for comparison with timestamps
-    min_duration_seconds = min_fixation_duration / 1000.0
     
     # Expand velocity array so it matches number of gaze points
     if len(velocity) > 0:
@@ -184,7 +178,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         window_duration_seconds = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Check if window meets minimum fixation duration
-        if window_duration_seconds >= min_duration_seconds:
+        if window_duration_seconds >= min_fixation_duration:
             event_type[start_idx:end_idx + 1] = 'Fixation'
 
             # Calculate fixation center

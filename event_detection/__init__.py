@@ -31,7 +31,6 @@ class EventDetection:
 
         # Bind external functions as methods
         self.detect_event = detect_event.__get__(self)
-        self.detect_event_with_merge = detect_event_with_merge.__get__(self)
         self.classify_aoi = classify_aoi.__get__(self)
         self.process_event = process_event.__get__(self)
 

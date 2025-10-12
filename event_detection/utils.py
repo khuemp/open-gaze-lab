@@ -1,5 +1,6 @@
 
 import numpy as np
+import pandas as pd
 
 def compute_velocity(df):
     """
@@ -83,31 +84,36 @@ def clean_fixations(events_df):
     events_df.rename(columns={"fixation_x": "norm_pos_x", "fixation_y": "norm_pos_y", "event_duration": "duration",
                             "fixation_id": "id"}, inplace=True)
     # TODO: "Unnamed: 4" columns may not exist for some eye trackers, fix dropping columns
-    events_df.drop(columns=["Unnamed: 4", "merged", "x", "y"], inplace=True, errors='ignore')
-    # TODO: Ask: why need video_frame_count?
-    events_df['video_frame_count'] = events_df['video_frame_count'].astype('Int64')  # allow nullable integer if nulls exist
+    events_df.drop(columns=["merged", "x", "y"], inplace=True, errors='ignore')
 
     # --- (B) Compute start/end frame for each fixation_id (exclude null fixation_id) ---
     fix_bounds = (
         events_df.dropna(subset=['id'])  # ignore rows without a fixation_id
-        .groupby('id', dropna=False)['video_frame_count']
-        .agg(start_frame_index='min', end_frame_index='max')
+        .groupby('id', dropna=False)['timestamp']
+        .agg(start_time='min', end_time='max')
         .reset_index()
     )
 
-    # --- (C) Merge the start/end back to the original dataframe ---
+    # Merge the start/end back to the original dataframe ---
     events_df = events_df.merge(fix_bounds, on='id', how='left')
 
     # Now every row that has a fixation_id will have start_frame_index and end_frame_index
     # Rows with NaN fixation_id will have NaN in those two new columns.
 
-    # --- (D) Drop duplicate fixation_id rows, keep the first occurrence ---
+    # Drop duplicate fixation_id rows, keep the first occurrence ---
     # If you want the first occurrence in temporal order, ensure dataframe is sorted by timestamp/frame first:
-    events_df = events_df.sort_values(['video_frame_count', 'timestamp']).reset_index(drop=True)
-    events_df = events_df[events_df["event_type"] == "Fixation"].reset_index(drop=True)
+    events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
 
-    # Drop duplicates (keeps the first row for each fixation_id)
-    events_df = events_df.drop_duplicates(subset=['id'], keep='first').reset_index(drop=True)
+    # Drop duplicates of fixations only (keeps the first row for each fixation_id)
+    fixations_df = events_df["event_type"] == "Fixation"
+    fixations_unique = (
+        events_df[fixations_df]
+        .drop_duplicates(subset=["id"], keep="first")
+    )
+    # Combine back with saccades
+    events_df = pd.concat([fixations_unique, events_df[~fixations_df]], ignore_index=True)
+    # Keep ordering by timestamp if needed
+    events_df = events_df.sort_values(by="timestamp").reset_index(drop=True)
 
     return events_df
 

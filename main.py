@@ -1,34 +1,47 @@
-
 import pandas as pd
-
+import os
 from event_detection import EventDetection
 
 if __name__ == '__main__':
-    # TODO: Enable reading different input files
-    # Process a single file: A01_1966_False_False.csv located at project root.
-    import os
-    # Build absolute path to CSV located in the same directory as this script
     script_dir = os.path.abspath(os.path.dirname(__file__))
-    csv_path = os.path.join(script_dir, 'gaze.csv')
+    input_folder = os.path.join(script_dir, 'gaze_data')
+    output_folder = os.path.join(script_dir, 'event_results')
 
-    if not os.path.isfile(csv_path):
-        raise FileNotFoundError(f"Input file not found: {csv_path}")
+    if not os.path.isdir(input_folder):
+        raise FileNotFoundError(f"Input folder not found: {input_folder}")
 
-    print(f"Reading gaze data from: {csv_path}")
-    # Adjust delimiter if necessary (currently assumes semicolon)
-    gaze_file = pd.read_csv(csv_path, delimiter=';')
-    event_detection = EventDetection(gaze_file)
+    os.makedirs(output_folder, exist_ok=True)
 
-    # Output path (same directory, different name)
-    output_path = os.path.join(script_dir, 'fixations.csv')
+    for filename in os.listdir(input_folder):
+        if filename.lower().endswith('.csv'):
+            csv_path = os.path.join(input_folder, filename)
 
-    event_detection.process_event(output_dir=output_path,
-                                             plot=False,
-                                             min_fixation_duration=50.0,
-                                             merge_distance=None,
-                                             threshold=25.0,
-                                             adapt=False,
-                                             optimize=False,
-                                             algorithm='idt')
+            try:
+                # This loop now also handles the timestamp conversion.
+                for delim in [';', ',']:
+                    gaze_file = pd.read_csv(csv_path, delimiter=delim)
+                    if gaze_file.shape[1] > 1:  # Check if delimiter worked
+                        
+                        # If the delimiter was a comma, convert the timestamp
+                        if delim == ',':
+                            gaze_file['timestamp'] /= 1000.0
+                        
+                        break # Exit loop once the correct delimiter is found
+                
+                event_detection = EventDetection(gaze_file)
 
-    print(f"Processing complete! Output written to {output_path}")
+                output_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}_events.csv")
+
+                event_detection.process_event(
+                    output_dir=output_path,
+                    plot=False,
+                    min_fixation_duration=100.0/1000.0,  # in seconds
+                    merge_distance=None,
+                    threshold=25.0,
+                    adapt=False,
+                    optimize=False,
+                    algorithm='idt'
+                )
+
+            except Exception as e:
+                print(f"⚠️ Error processing {filename}: {e}")
