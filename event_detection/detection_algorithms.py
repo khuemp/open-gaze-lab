@@ -13,10 +13,8 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
     result_data = gaze_data.copy()
     
     # Scale coordinates to pixels for dispersion/velocity calculation
-    # Assuming original coordinates are normalized [0,1] and image size is 640x480
-    # TODO: Add parameters for pixel dimensions
-    x = result_data['x'].values * 640
-    y = result_data['y'].values * 480
+    x = result_data['x'].values
+    y = result_data['y'].values
     t = result_data['timestamp'].values
 
     # Number of gaze points
@@ -116,21 +114,21 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
 
         # Calculate duration of the current window
         end_idx = current_idx - 1 if current_idx > start_idx else start_idx
-        window_duration_seconds = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
+        window_duration = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Check if window meets minimum fixation duration
-        if window_duration_seconds >= min_fixation_duration:
+        if window_duration >= min_fixation_duration:
             # Classify as fixation
             event_type[start_idx:end_idx + 1] = 'Fixation'
             
-            # Calculate fixation center in normalized coordinates assuming image size 640x480
-            fix_x = np.mean(x[start_idx:end_idx + 1]) / 640
-            fix_y = np.mean(y[start_idx:end_idx + 1]) / 480
+            # Calculate fixation center in normalized coordinates
+            fix_x = np.mean(x[start_idx:end_idx + 1])
+            fix_y = np.mean(y[start_idx:end_idx + 1])
             
             # Assign fixation coordinates and duration to arrays that store results
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
-            event_duration[start_idx:end_idx + 1] = window_duration_seconds * 1000  # Convert back to ms
+            event_duration[start_idx:end_idx + 1] = window_duration
             fixation_ids[start_idx:end_idx + 1] = fixation_id
             fixation_id += 1
 
@@ -175,19 +173,19 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
 
         # Calculate duration of the current low-velocity window
         end_idx = current_idx - 1 if current_idx > start_idx else start_idx
-        window_duration_seconds = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
+        window_duration = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Check if window meets minimum fixation duration
-        if window_duration_seconds >= min_fixation_duration:
+        if window_duration >= min_fixation_duration:
             event_type[start_idx:end_idx + 1] = 'Fixation'
 
             # Calculate fixation center
-            fix_x = np.mean(x[start_idx:end_idx + 1]) / 640
-            fix_y = np.mean(y[start_idx:end_idx + 1]) / 480
+            fix_x = np.mean(x[start_idx:end_idx + 1])
+            fix_y = np.mean(y[start_idx:end_idx + 1])
 
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
-            event_duration[start_idx:end_idx + 1] = window_duration_seconds * 1000  # ms
+            event_duration[start_idx:end_idx + 1] = window_duration
             fixation_ids[start_idx:end_idx + 1] = fixation_id
             fixation_id += 1
 

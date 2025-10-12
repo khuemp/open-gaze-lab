@@ -37,7 +37,7 @@ if __name__ == '__main__':
                     plot=False,
                     min_fixation_duration=100.0/1000.0,  # in seconds
                     merge_distance=None,
-                    threshold=25.0,
+                    threshold=0.15, # in coordinates [0,1]
                     adapt=False,
                     optimize=False,
                     algorithm='idt'

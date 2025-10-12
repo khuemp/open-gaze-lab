@@ -79,14 +79,11 @@ def clean_fixations(events_df):
     Returns:
         pd.DataFrame: Cleaned DataFrame with renamed columns, start/end frame indices, and one row per fixation.
     """
-    # events_df["fixation_x"] /= 640
-    # events_df["fixation_y"] /= 480
     events_df.rename(columns={"fixation_x": "norm_pos_x", "fixation_y": "norm_pos_y", "event_duration": "duration",
                             "fixation_id": "id"}, inplace=True)
-    # TODO: "Unnamed: 4" columns may not exist for some eye trackers, fix dropping columns
-    events_df.drop(columns=["merged", "x", "y"], inplace=True, errors='ignore')
+    events_df.drop(columns=["Unnamed: 4", "merged", "x", "y"], inplace=True, errors='ignore')
 
-    # --- (B) Compute start/end frame for each fixation_id (exclude null fixation_id) ---
+    # Compute start/end frame for each fixation_id (exclude null fixation_id)
     fix_bounds = (
         events_df.dropna(subset=['id'])  # ignore rows without a fixation_id
         .groupby('id', dropna=False)['timestamp']
@@ -97,11 +94,8 @@ def clean_fixations(events_df):
     # Merge the start/end back to the original dataframe ---
     events_df = events_df.merge(fix_bounds, on='id', how='left')
 
-    # Now every row that has a fixation_id will have start_frame_index and end_frame_index
-    # Rows with NaN fixation_id will have NaN in those two new columns.
-
-    # Drop duplicate fixation_id rows, keep the first occurrence ---
-    # If you want the first occurrence in temporal order, ensure dataframe is sorted by timestamp/frame first:
+    # Drop duplicate fixation_id rows, keep the first occurrence
+    # If you want the first occurrence in temporal order, ensure dataframe is sorted by timestamp first:
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
 
     # Drop duplicates of fixations only (keeps the first row for each fixation_id)
@@ -207,7 +201,6 @@ def merge_close_fixations(gaze_data, distance_threshold=100.0):
         for old_id in fixation['merged_ids']:
             merged_event_map[old_id] = new_event_id
 
-    # TODO: clean this part up
     # Create a copy of the original data
     merged_data = gaze_data.copy()
 

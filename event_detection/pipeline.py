@@ -7,62 +7,6 @@ from .utils import clean_fixations, merge_close_fixations
 from .detection_algorithms import classify_idt, classify_ivt
 
 
-def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, candidate_thresholds=None):
-    """
-    Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
-
-    Args:
-        gaze_data (pd.DataFrame): DataFrame with ['x', 'y', 'timestamp'] columns.
-        min_fixation_duration (float): Minimum fixation duration in ms.
-        adapt (bool): Whether to adapt the dispersion threshold based on velocity.
-        candidate_thresholds (list, optional): List of dispersion thresholds to test.
-
-    Returns:
-        float: Best threshold according to Calinski-Harabasz score.
-    """
-    # TODO: Ask: use real candidate thresholds based on data characteristics?
-    if candidate_thresholds is None:
-        candidate_thresholds = [125, 150, 175, 200, 225, 250, 275, 300]
-
-    best_score = -np.inf
-    best_threshold = candidate_thresholds[0]
-
-    for threshold in candidate_thresholds:
-        try:
-            # TODO: I-VT implementation
-            # Run I-DT classification
-            classified_df = classify_idt(
-                gaze_data.copy(),
-                dispersion_threshold=threshold,
-                min_fixation_duration=min_fixation_duration,
-                adapt=adapt
-            )
-
-            # Extract valid fixation points
-            fixation_mask = classified_df['event_type'] == 'Fixation'
-            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
-
-            # Get cluster labels (fixation IDs)
-            labels = classified_df[fixation_mask]['fixation_id'].values
-
-            # Need at least 2 fixations to compute CH score
-            if len(np.unique(labels)) < 2:
-                continue
-
-            # Compute Calinski-Harabasz score
-            score = calinski_harabasz_score(fixation_points, labels)
-
-            if score > best_score:
-                best_score = score
-                best_threshold = threshold
-
-        except Exception as e:
-            print(f"Error with threshold {threshold}: {str(e)}")
-            continue
-
-    return best_threshold
-
-
 def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     """
     Checks if the fixation points are in the AOI or not.
@@ -258,6 +202,67 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     return gaze_data
 
 
+def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorithm=None, candidate_thresholds=None):
+    """
+    Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
+
+    Args:
+        gaze_data (pd.DataFrame): DataFrame with ['x', 'y', 'timestamp'] columns.
+        min_fixation_duration (float): Minimum fixation duration in ms.
+        adapt (bool): Whether to adapt the dispersion threshold based on velocity.
+        candidate_thresholds (list, optional): List of dispersion thresholds to test.
+
+    Returns:
+        float: Best threshold according to Calinski-Harabasz score.
+    """
+    if candidate_thresholds is None:
+        candidate_thresholds = [125, 150, 175, 200, 225, 250, 275, 300]
+
+    best_score = -np.inf
+    best_threshold = candidate_thresholds[0]
+
+    for threshold in candidate_thresholds:
+        try:
+            if algorithm == 'idt':
+                classified_df = classify_idt(
+                    gaze_data.copy(),
+                    dispersion_threshold=threshold,
+                    min_fixation_duration=min_fixation_duration,
+                    adapt=adapt
+                )
+            else:
+                classified_df = classify_ivt(
+                    gaze_data.copy(),
+                    velocity_threshold=threshold,
+                    min_fixation_duration=min_fixation_duration,
+                    adapt=adapt
+                )
+
+            # Extract valid fixation points
+            fixation_mask = classified_df['event_type'] == 'Fixation'
+            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
+
+            # Get cluster labels (fixation IDs)
+            labels = classified_df[fixation_mask]['fixation_id'].values
+
+            # Need at least 2 fixations to compute CH score
+            if len(np.unique(labels)) < 2:
+                continue
+
+            # Compute Calinski-Harabasz score
+            score = calinski_harabasz_score(fixation_points, labels)
+
+            if score > best_score:
+                best_score = score
+                best_threshold = threshold
+
+        except Exception as e:
+            print(f"Error with threshold {threshold}: {str(e)}")
+            continue
+
+    return best_threshold
+
+
 def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
                             algorithm=None, threshold=150.0, merge_distance=100.0, adapt=False,
                             optimize=False):
@@ -281,8 +286,8 @@ def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
         return None
     
     # Find the best dispersion threshold using optimization
-    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt) if optimize else threshold
-    print(f"Best Threshold:{best_thresh}")
+    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt, algorithm=algorithm) if optimize else threshold
+    print(f"Best Threshold: {best_thresh}")
 
     try:
         # First detect events using the original algorithm
