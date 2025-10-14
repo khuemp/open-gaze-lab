@@ -2,6 +2,7 @@
 from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
+from .visualization import plot_gaze_points_and_fixations
 
 class EventDetection:
     """
@@ -21,8 +22,6 @@ class EventDetection:
         self.gaze_data = self.gaze_data.loc[~((self.gaze_data["x"] == 0.0) & (self.gaze_data["y"] == 1.0))].reset_index(drop=True)
         self.is_valid_data = True
 
-        self.gaze_data["y"] = 1 - self.gaze_data["y"]  # Invert y-axis to match image coordinates
-
         # Configure logger
         logging.basicConfig(
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -34,4 +33,25 @@ class EventDetection:
         self.classify_aoi = classify_aoi.__get__(self)
         self.process_event = process_event.__get__(self)
 
-__all__ = ["EventDetection"]
+
+class EyeTrackingVisualizer:
+    """
+    Class for visualizing eye-tracking data.
+
+    Methods:
+        plot_gaze_points_and_fixations(gaze_data, bg_image_path=None, aois=None, show_attach=True, attach_type='bbox'):
+            Visualizes gaze points and fixations from eye-tracking data using Plotly.
+    """
+
+    def __init__(self, loaded_event_df):
+        """Initializes the EyeTrackingVisualizer class."""
+        # Configure logger
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+        )
+        self.event_data_df = loaded_event_df.copy()
+
+        # Bind external functions as methods
+        self.plot_gaze_points_and_fixations = plot_gaze_points_and_fixations.__get__(self)
+
+__all__ = ["EventDetection", "EyeTrackingVisualizer"]

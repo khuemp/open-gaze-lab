@@ -264,7 +264,7 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 
 
 def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
-                            algorithm=None, threshold=150.0, merge_distance=100.0, adapt=False,
+                            algorithm=None, threshold=150.0, merge_distance=None, adapt=False,
                             optimize=False):
     """
     Detects events in the loaded gaze data using the specified algorithm and merges close fixations.
@@ -281,6 +281,7 @@ def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
 
     Returns:
         pd.DataFrame: Processed gaze data with event classifications and merged fixations.
+        float: The best threshold used for event detection.
     """
     if not self.is_valid_data:
         return None
@@ -334,8 +335,8 @@ def process_event(self, output_dir, plot=True,
         duration_cutoff (float): Optional duration cutoff.
 
     Returns:
-        bool: True if processing was successful, False otherwise.
-        """
+        pd.DataFrame: Processed gaze data with event classifications and merged fixations.
+    """
     aois = None
     if aoi_file_path is not None:
         aois = pd.read_csv(aoi_file_path)
@@ -363,7 +364,7 @@ def process_event(self, output_dir, plot=True,
         event_gaze = clean_fixations(event_gaze)
         event_gaze.to_csv(output_dir, index=False, sep=';')
         logging.info(f"Processed and saved event data in {output_dir}")
-        return True
     else:
         logging.error("Failed to process event data")
-        return False
+    
+    return event_gaze

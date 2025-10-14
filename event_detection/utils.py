@@ -79,9 +79,9 @@ def clean_fixations(events_df):
     Returns:
         pd.DataFrame: Cleaned DataFrame with renamed columns, start/end frame indices, and one row per fixation.
     """
-    events_df.rename(columns={"fixation_x": "norm_pos_x", "fixation_y": "norm_pos_y", "event_duration": "duration",
+    events_df.rename(columns={"event_duration": "duration",
                             "fixation_id": "id"}, inplace=True)
-    events_df.drop(columns=["Unnamed: 4", "merged", "x", "y"], inplace=True, errors='ignore')
+    events_df.drop(columns=["Unnamed: 4"], inplace=True, errors='ignore')
 
     # Compute start/end frame for each fixation_id (exclude null fixation_id)
     fix_bounds = (
