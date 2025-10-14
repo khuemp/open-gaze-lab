@@ -24,7 +24,8 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
     fixation_x = np.full(n, np.nan)
     fixation_y = np.full(n, np.nan)
     event_duration = np.full(n, np.nan)
-    fixation_ids = np.zeros(n)
+    fixation_ids = np.full(n, np.nan) # Use NaN for non-fixation points
+    saccade_ids = np.full(n, np.nan)  # Use NaN for non-saccade points
 
     # Adaptive threshold computation
     original_threshold = threshold
@@ -52,17 +53,33 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
         else:
             print(f"Using original threshold: {threshold} (no valid velocity)")
 
-    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids
+    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids
 
 
-def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids):
+def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids):
     """Assign additional columns with computed values to the DataFrame and return it."""
     result_data['event_type'] = event_type
     result_data['fixation_x'] = fixation_x
     result_data['fixation_y'] = fixation_y
     result_data['event_duration'] = event_duration
     result_data['fixation_id'] = fixation_ids
+    result_data['saccade_id'] = saccade_ids
     return result_data
+
+def add_saccade_ids(event_type, saccade_ids):
+    """Helper function to find consecutive saccades and assign them a unique ID."""
+    saccade_id_counter = 1 # Saccade counter starts at 1
+    in_saccade = False
+    for i in range(len(event_type)):
+        if event_type[i] == 'Saccade':
+            if not in_saccade:
+                in_saccade = True
+            saccade_ids[i] = saccade_id_counter
+        elif in_saccade: # End of a saccade block
+            in_saccade = False
+            saccade_id_counter += 1 # Increment only when a new saccade block begins
+    return saccade_ids
+
 
 
 def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50.0/1000, adapt=False):
@@ -81,7 +98,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
         pd.DataFrame: Gaze data with added 'event_type', 'fixation_x', 'fixation_y', and 'event_duration' columns.
     """
     (result_data, x, y, t, n, dispersion_threshold, velocity,
-     event_type, fixation_x, fixation_y, event_duration, fixation_ids) = \
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \
         prepare_classification_data(gaze_data, dispersion_threshold, adapt, is_velocity_based=False)
 
     start_idx = 0
@@ -134,7 +151,9 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
 
         start_idx = end_idx + 1 if current_idx > start_idx else start_idx + 1
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids)
+    saccade_ids = add_saccade_ids(event_type, saccade_ids)
+
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
 
 
 def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0/1000, adapt=False):
@@ -153,7 +172,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         pd.DataFrame: DataFrame with added columns: 'event_type','fixation_x','fixation_y','event_duration','fixation_id'.
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
-     event_type, fixation_x, fixation_y, event_duration, fixation_ids) = \
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids, s) = \
         prepare_classification_data(gaze_data, velocity_threshold, adapt, is_velocity_based=True)
 
     start_idx = 0
@@ -192,4 +211,6 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         # Move to next segment
         start_idx = end_idx + 1
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids)
+    saccade_ids = add_saccade_ids(event_type, saccade_ids)
+
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)

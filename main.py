@@ -42,8 +42,8 @@ if __name__ == '__main__':
                     output_dir=event_output_path,
                     plot=False,
                     min_fixation_duration=100.0/1000.0,  # in seconds
-                    merge_distance=None,
-                    threshold=25.0, # in pixels
+                    fixation_merge_threshold=None,
+                    detect_threshold=25.0, # in pixels
                     adapt=False,
                     optimize=False,
                     algorithm='idt'

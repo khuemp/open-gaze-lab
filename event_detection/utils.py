@@ -79,49 +79,44 @@ def clean_fixations(events_df):
     Returns:
         pd.DataFrame: Cleaned DataFrame with renamed columns, start/end frame indices, and one row per fixation.
     """
-    events_df.rename(columns={"event_duration": "duration",
-                            "fixation_id": "id"}, inplace=True)
+    events_df.rename(columns={"event_duration": "duration"}, inplace=True)
     events_df.drop(columns=["Unnamed: 4"], inplace=True, errors='ignore')
 
     # Compute start/end frame for each fixation_id (exclude null fixation_id)
     fix_bounds = (
-        events_df.dropna(subset=['id'])  # ignore rows without a fixation_id
-        .groupby('id', dropna=False)['timestamp']
+        events_df.dropna(subset=['fixation_id'])  # ignore rows without a fixation_id
+        .groupby('fixation_id', dropna=False)['timestamp']
+        .agg(start_time='min', end_time='max')
+        .reset_index()
+    )
+    sac_bounds = (
+        events_df.dropna(subset=['saccade_id'])  # ignore rows without a saccade_id
+        .groupby('saccade_id', dropna=False)['timestamp']
         .agg(start_time='min', end_time='max')
         .reset_index()
     )
 
-    # Merge the start/end back to the original dataframe ---
-    events_df = events_df.merge(fix_bounds, on='id', how='left')
+    # Merge the start/end back to the original dataframe
+    events_df = events_df.merge(fix_bounds, on='fixation_id', how='left')
+    events_df = events_df.merge(sac_bounds, on='saccade_id', how='left')
 
-    # Drop duplicate fixation_id rows, keep the first occurrence
     # If you want the first occurrence in temporal order, ensure dataframe is sorted by timestamp first:
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
-
-    # Drop duplicates of fixations only (keeps the first row for each fixation_id)
-    fixations_df = events_df["event_type"] == "Fixation"
-    fixations_unique = (
-        events_df[fixations_df]
-        .drop_duplicates(subset=["id"], keep="first")
-    )
-    # Combine back with saccades
-    events_df = pd.concat([fixations_unique, events_df[~fixations_df]], ignore_index=True)
-    # Keep ordering by timestamp if needed
-    events_df = events_df.sort_values(by="timestamp").reset_index(drop=True)
 
     return events_df
 
 
-def merge_close_fixations(gaze_data, distance_threshold=100.0):
+def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     """
-    Merges consecutive fixations that are close to each other.
+    Merges consecutive fixations that are close to each other and
+    summarizes the final fixation events into one row per event.
 
     Args:
         gaze_data (pd.DataFrame): DataFrame containing gaze data with event classifications.
-        distance_threshold (float): Maximum distance (in pixels) between consecutive fixations to be merged.
+        fixation_merge_threshold (float): Maximum distance (in pixels) between consecutive fixations to be merged.
 
     Returns:
-        pd.DataFrame: Gaze data with merged fixations (updated fixation coordinates, IDs, and durations).
+        pd.DataFrame: Gaze data with merged and summarized fixations.
     """
     # Get gaze points classified as fixations and group by fixation_id to get unique fixations
     fixation_events = gaze_data[gaze_data['event_type'] == 'Fixation'].groupby('fixation_id').agg({
@@ -153,7 +148,7 @@ def merge_close_fixations(gaze_data, distance_threshold=100.0):
                         (current_fixation['fixation_y'] - next_fixation['fixation_y']) ** 2) ** 0.5
 
             # Check if next fixation is close enough to merge
-            if distance <= distance_threshold:
+            if distance <= fixation_merge_threshold:
                 # Update current fixation with weighted average position and new end time
                 total_duration_current = current_fixation['end_time'] - current_fixation['start_time']
                 total_duration_next = next_fixation['end_time'] - next_fixation['start_time']
@@ -217,9 +212,20 @@ def merge_close_fixations(gaze_data, distance_threshold=100.0):
             merged_data.loc[mask, 'fixation_id'] = new_id
             merged_data.loc[mask, 'event_duration'] = merged_fix['end_time'] - merged_fix['start_time']
 
-    # Create a new column to track if an event has been merged
-    merged_data['merged'] = merged_data['fixation_id'].apply(lambda x: x in merged_event_map.values())
-    merged_data['event_id'] = (merged_data['fixation_id'] != merged_data['fixation_id'].shift(1)).cumsum()
+    # This block summarizes the (potentially newly merged) fixations into one row each.
+    fixation_mask = merged_data["event_type"] == "Fixation"
+    fixations_unique = (
+        merged_data[fixation_mask]
+        .drop_duplicates(subset=["fixation_id"], keep="first")
+    )
 
-    return merged_data
+    # Combine the unique fixations back with all saccades
+    saccades = merged_data[~fixation_mask]
+    merged_df = pd.concat([fixations_unique, saccades], ignore_index=True)
+
+    # Sort by timestamp to maintain temporal order
+    merged_df = merged_df.sort_values(by="timestamp").reset_index(drop=True)
+
+    return merged_df
+
 
