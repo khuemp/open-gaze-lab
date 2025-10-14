@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import logging
 from sklearn.metrics import calinski_harabasz_score
-from .utils import clean_fixations, merge_fixations
+from .utils import clean_fixations, merge_fixations, merge_saccades
 from .detection_algorithms import classify_idt, classify_ivt
 
 

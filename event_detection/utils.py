@@ -96,11 +96,21 @@ def clean_fixations(events_df):
         .reset_index()
     )
 
-    # Merge the start/end back to the original dataframe
-    events_df = events_df.merge(fix_bounds, on='fixation_id', how='left')
-    events_df = events_df.merge(sac_bounds, on='saccade_id', how='left')
+    # Create the new columns just once, filled with null values
+    events_df['start_time'] = np.nan
+    events_df['end_time'] = np.nan
 
-    # If you want the first occurrence in temporal order, ensure dataframe is sorted by timestamp first:
+    # Map the times back to the original dataframe, updating the new columns
+    # This works because the index (fixation_id or saccade_id) aligns the data correctly
+    events_df.set_index('fixation_id', inplace=True)
+    events_df.update(fix_bounds)
+    events_df.reset_index(inplace=True)
+    
+    events_df.set_index('saccade_id', inplace=True)
+    events_df.update(sac_bounds)
+    events_df.reset_index(inplace=True)
+
+    # Sort and return the final, clean dataframe
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
 
     return events_df
@@ -229,3 +239,35 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     return merged_df
 
 
+def merge_saccades(events_df):
+    """
+    Merges all gaze points belonging to the same saccade event by keeping the
+    first occurrence of each saccade_id. Fixation data is left untouched.
+
+    Args:
+        events_df (pd.DataFrame): The detailed event data with one row per gaze point.
+
+    Returns:
+        pd.DataFrame: A DataFrame with saccades summarized into single rows and
+                      fixations preserved in their original multi-row format.
+    """
+    # Create a boolean mask to identify all saccade rows
+    saccade_mask = events_df["event_type"] == "Saccade"
+
+    # Use the mask to select and summarize saccades by keeping the first
+    # row for each unique saccade_id.
+    saccades_unique = (
+        events_df[saccade_mask]
+        .drop_duplicates(subset=["saccade_id"], keep="first")
+    )
+
+    # Use the inverse of the mask to select all original fixation rows
+    fixations = events_df[~saccade_mask]
+
+    # Combine the original fixations with the new summarized saccades
+    merged_df = pd.concat([fixations, saccades_unique], ignore_index=True)
+
+    # Sort the final dataframe by timestamp to restore the correct chronological order
+    merged_df = merged_df.sort_values(by="timestamp").reset_index(drop=True)
+
+    return merged_df
