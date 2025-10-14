@@ -263,14 +263,13 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
     return best_threshold
 
 
-def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
+def detect_event(self, min_fixation_duration=50.0, aois=None,
                             algorithm=None, detect_threshold=150.0, fixation_merge_threshold=None, adapt=False,
                             optimize=False):
     """
     Detects events in the loaded gaze data using the specified algorithm and merges close fixations.
 
     Args:
-        plot (bool): Whether to plot the event segmentation.
         min_fixation_duration (float): Minimum duration for a fixation (in milliseconds).
         aois (pd.DataFrame): Areas of interest for AOI classification.
         algorithm (str): Event detection algorithm ('ivt' or 'idt'-default).
@@ -316,8 +315,7 @@ def detect_event(self, plot=False, min_fixation_duration=50.0, aois=None,
     return data, best_thresh
 
 
-def process_event(self, output_dir, plot=True,
-                            min_fixation_duration=50.0, aoi_file_path=None, algorithm=None,
+def process_event(self, output_dir, min_fixation_duration=50.0, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
                             optimize=False, duration_cutoff: float = None):
     """
@@ -325,7 +323,6 @@ def process_event(self, output_dir, plot=True,
 
     Args:
         output_dir (str): Directory to store the output CSV files.
-        plot (bool): Whether to plot the event segmentation.
         min_fixation_duration (float): Minimum duration for fixation events.
         aoi_file_path (str): Whether to check if the fixation points are in the AOI or not
         algorithm: Event detection algorithm ('ivt' or 'idt').
@@ -351,7 +348,6 @@ def process_event(self, output_dir, plot=True,
             self.gaze_data["timestamp"] = self.gaze_data["timestamp"] - t0
     event_gaze, best_thresh = detect_event(
         self,
-        plot=plot,
         min_fixation_duration=min_fixation_duration,
         aois=aois,
         algorithm=algorithm,

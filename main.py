@@ -40,7 +40,6 @@ if __name__ == '__main__':
 
                 event_results = event_detection.process_event(
                     output_dir=event_output_path,
-                    plot=False,
                     min_fixation_duration=100.0/1000.0,  # in seconds
                     fixation_merge_threshold=100.0,
                     detect_threshold=25.0, # in pixels
