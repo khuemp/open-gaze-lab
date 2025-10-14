@@ -9,7 +9,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     Args:
         gaze_data (pd.DataFrame): DataFrame containing columns
-            'x', 'y' for gaze points and 'fixation_x', 'fixation_y' for fixation points.
+            'x', 'y' for gaze points and 'norm_pos_x', 'norm_pos_y' for fixation points.
             An 'event_type' column is expected to classify gaze points as 'Fixation' or 'Saccade'.
         bg_image_path (str): Path to background image to display in the plot.
         aois (pd.DataFrame): DataFrame containing columns 'aoi_type', 'aoi', 'pos_x', 'pos_y', 'width', 'height'
@@ -36,16 +36,16 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     )
 
     # Get all unique fixation points
-    fixations = gaze_data[['fixation_x', 'fixation_y']].drop_duplicates()
+    fixations = gaze_data[['norm_pos_x', 'norm_pos_y']].drop_duplicates()
     # remove NaN values
-    fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
+    fixations = fixations[fixations['norm_pos_x'].notna() & fixations['norm_pos_y'].notna()]
     # reset index
     fixations.reset_index(drop=True, inplace=True)
 
     # Create a scatter plot for fixation points
     fixation_scatter = go.Scatter(
-        x=fixations['fixation_x'],
-        y=fixations['fixation_y'],
+        x=fixations['norm_pos_x'],
+        y=fixations['norm_pos_y'],
         mode='markers+text',
         marker=dict(color='white', size=10, line=dict(color='black', width=2)),
         text=[str(index) for index in fixations.index],
@@ -55,8 +55,8 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     # Connect fixation points with a line
     fixation_line = go.Scatter(
-        x=fixations['fixation_x'],
-        y=fixations['fixation_y'],
+        x=fixations['norm_pos_x'],
+        y=fixations['norm_pos_y'],
         mode='lines',
         line=dict(color='black', width=2),
         name='Fixation Path'
@@ -131,7 +131,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     if show_attach and 'aoi' in gaze_data.columns and aois is not None:
         # Get fixations with AOI assignments
         fixations = gaze_data[gaze_data['aoi_type'].notna()][
-            ['fixation_x', 'fixation_y', 'aoi_type', 'aoi', 'aoi_id']].drop_duplicates()
+            ['norm_pos_x', 'norm_pos_y', 'aoi_type', 'aoi', 'aoi_id']].drop_duplicates()
         fixations.reset_index(drop=True, inplace=True)
 
         # We will draw a line from each fixation to the centroid or bbox of the assigned AOI
@@ -146,8 +146,8 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
             # Create a line from fixation to AOI centroid
             line = go.Scatter(
-                x=[fixation['fixation_x'], aoi_center_x],
-                y=[fixation['fixation_y'], aoi_center_y],
+                x=[fixation['norm_pos_x'], aoi_center_x],
+                y=[fixation['norm_pos_y'], aoi_center_y],
                 mode='lines',
                 line=dict(color='red', width=2),
                 name=f'Fixation {idx} to AOI Centroid'
