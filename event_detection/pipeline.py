@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import logging
 from sklearn.metrics import calinski_harabasz_score
-from .utils import clean_fixations, merge_fixations, merge_saccades
+from .utils import clean_fixations, merge_fixations, merge_saccades, summarize_events
 from .detection_algorithms import classify_idt, classify_ivt
 
 
@@ -346,6 +346,7 @@ def process_event(self, output_dir, min_fixation_duration=50.0, aoi_file_path=No
             self.gaze_data = self.gaze_data.loc[self.gaze_data["timestamp"] >= start_threshold].reset_index(drop=True)
             t0 = self.gaze_data["timestamp"].iloc[0]
             self.gaze_data["timestamp"] = self.gaze_data["timestamp"] - t0
+            
     event_gaze, best_thresh = detect_event(
         self,
         min_fixation_duration=min_fixation_duration,
@@ -358,10 +359,17 @@ def process_event(self, output_dir, min_fixation_duration=50.0, aoi_file_path=No
     )
 
     if event_gaze is not None:
-        event_gaze = clean_fixations(event_gaze)
-        event_gaze.to_csv(output_dir, index=False, sep=';')
+        # If we merged fixations, we want the summarized output with one row per event.
+        if fixation_merge_threshold is not None:
+            final_gaze_data = summarize_events(event_gaze)
+        # If we did NOT merge fixations, we want the detailed output with one row per gaze point.
+        else:
+            final_gaze_data = clean_fixations(event_gaze)
+        
+        final_gaze_data.to_csv(output_dir, index=False, sep=';')
         logging.info(f"Processed and saved event data in {output_dir}")
     else:
         logging.error("Failed to process event data")
+        return None
     
-    return event_gaze
+    return final_gaze_data
