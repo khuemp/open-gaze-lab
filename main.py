@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
             try:
                 # This loop now also handles the timestamp conversion.
-                for delim in [';', ',']:
+                for delim in [';', ',', '\t', ' ']:
                     gaze_file = pd.read_csv(csv_path, delimiter=delim)
                     if gaze_file.shape[1] > 1:  # Check if delimiter worked
                         

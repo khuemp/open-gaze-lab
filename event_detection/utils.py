@@ -241,21 +241,48 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
 
 def merge_saccades(events_df):
     """
-    Merges all gaze points belonging to the same saccade event by keeping the
-    first occurrence of each saccade_id. Fixation data is left untouched.
+    Merges consecutive saccade events into single events by re-indexing them.
+    This is designed to be run AFTER fixation merging to combine
+    any saccades that are now adjacent.
 
     Args:
         events_df (pd.DataFrame): The detailed event data with one row per gaze point.
 
     Returns:
-        pd.DataFrame: A DataFrame with saccades summarized into single rows and
-                      fixations preserved in their original multi-row format.
+        pd.DataFrame: A DataFrame with saccades re-indexed and summarized,
+                      and fixations preserved.
     """
+    # Sort by timestamp to ensure correct chronological order
+    events_df = events_df.sort_values(by="timestamp").reset_index(drop=True)
+
+    event_type = events_df['event_type'].values
+    # Create a new array for the merged saccade IDs
+    new_saccade_ids = np.full(len(events_df), np.nan) 
+
+    saccade_id_counter = 1
+    in_saccade = False
+
+    # Iterate through all rows and assign new IDs to consecutive 'Saccade' rows
+    for i in range(len(event_type)):
+        if event_type[i] == 'Saccade':
+            if not in_saccade:
+                in_saccade = True # This is the start of a new saccade block
+            new_saccade_ids[i] = saccade_id_counter
+        elif in_saccade: 
+            # We were in a saccade, and now it's a fixation (or other event)
+            in_saccade = False
+            saccade_id_counter += 1 # Increment counter for the next block
+
+    # Assign the newly generated (and merged) saccade IDs
+    events_df['saccade_id'] = new_saccade_ids
+
+    # --- Now, we summarize the dataframe as before ---
+    
     # Create a boolean mask to identify all saccade rows
     saccade_mask = events_df["event_type"] == "Saccade"
 
     # Use the mask to select and summarize saccades by keeping the first
-    # row for each unique saccade_id.
+    # row for each unique (and now merged) saccade_id.
     saccades_unique = (
         events_df[saccade_mask]
         .drop_duplicates(subset=["saccade_id"], keep="first")

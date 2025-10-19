@@ -172,7 +172,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         pd.DataFrame: DataFrame with added columns: 'event_type','norm_pos_x','norm_pos_y','event_duration','fixation_id'.
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
-     event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, s) = \
+     event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids) = \
         prepare_classification_data(gaze_data, velocity_threshold, adapt, is_velocity_based=True)
 
     start_idx = 0
