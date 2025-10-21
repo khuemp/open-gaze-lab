@@ -55,20 +55,27 @@ def compute_mad(velocity):
 
 def clean_fixations(events_df):
     """
-    OUTPUT FORMAT 1: ONE ROW PER GAZE POINT
     Cleans and formats the event DataFrame by calculating start_time, 
-    end_time, and duration for all events and mapping these values back 
-    to *every gaze point* row. This is used when fixations are NOT merged.
+    end_time, and duration for all events (fixations and saccades)
+    and mapping these values back to *every gaze point* row.
+    
+    This function does NOT summarize the data and preserves the 
+    one-row-per-gaze-point format for all scenarios.
 
     Args:
-        events_df (pd.DataFrame): DataFrame with one row per gaze point.
+        events_df (pd.DataFrame): DataFrame containing event data (one row per gaze point).
 
     Returns:
-        pd.DataFrame: Original DataFrame with start/end/duration mapped to every row.
+        pd.DataFrame: Cleaned DataFrame with start/end/duration mapped to every row.
     """
+    # Drop unused columns if they exist
+    events_df.drop(columns=["Unnamed: 4"], inplace=True, errors='ignore')
+    
     events_df['start_time'] = np.nan
     events_df['end_time'] = np.nan
-    events_df['duration'] = np.nan
+    
+    if 'duration' not in events_df.columns:
+         events_df['duration'] = np.nan
 
     # --- 1. Calculate and Map Fixation Bounds ---
     fix_mask = events_df['fixation_id'].notna()
@@ -82,6 +89,7 @@ def clean_fixations(events_df):
         
         events_df.loc[fix_mask, 'start_time'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['start_time'])
         events_df.loc[fix_mask, 'end_time'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['end_time'])
+        # Map the newly calculated duration for all fixations
         events_df.loc[fix_mask, 'duration'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['duration'])
 
     # --- 2. Calculate and Map Saccade Bounds ---
@@ -102,59 +110,6 @@ def clean_fixations(events_df):
     
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
     return events_df
-
-
-def summarize_events(events_df):
-    """
-    OUTPUT FORMAT 2: ONE ROW PER EVENT
-    Summarizes event data to one row per unique event (fixation or saccade).
-    This is used when fixations ARE merged.
-
-    Args:
-        events_df (pd.DataFrame): DataFrame processed by merge_fixations and merge_saccades.
-
-    Returns:
-        pd.DataFrame: Summarized DataFrame with one row per final event.
-    """
-    # --- 1. Summarize Fixations ---
-    fixation_mask = events_df['event_type'] == 'Fixation'
-    fixation_data = events_df[fixation_mask]
-    
-    if not fixation_data.empty:
-        fix_summary = fixation_data.groupby('fixation_id').agg(
-            start_time=('timestamp', 'min'),
-            end_time=('timestamp', 'max'),
-            norm_pos_x=('norm_pos_x', 'mean'),
-            norm_pos_y=('norm_pos_y', 'mean'),
-            timestamp=('timestamp', 'first'),
-            event_type=('event_type', 'first'),
-        ).reset_index()
-        fix_summary['duration'] = fix_summary['end_time'] - fix_summary['start_time']
-    else:
-        fix_summary = pd.DataFrame(columns=['fixation_id', 'start_time', 'end_time', 'norm_pos_x', 'norm_pos_y', 'timestamp', 'event_type', 'duration'])
-
-    # --- 2. Summarize Saccades ---
-    saccade_mask = events_df['event_type'] == 'Saccade'
-    saccade_data = events_df[saccade_mask]
-
-    if not saccade_data.empty:
-        sac_summary = saccade_data.groupby('saccade_id').agg(
-            start_time=('timestamp', 'min'),
-            end_time=('timestamp', 'max'),
-            timestamp=('timestamp', 'first'),
-            event_type=('event_type', 'first'),
-            x=('x', 'first'),
-            y=('y', 'first')
-        ).reset_index()
-        sac_summary['duration'] = sac_summary['end_time'] - sac_summary['start_time']
-    else:
-        sac_summary = pd.DataFrame(columns=['saccade_id', 'start_time', 'end_time', 'timestamp', 'event_type', 'x', 'y', 'duration'])
-
-    # --- 3. Combine and Sort ---
-    final_df = pd.concat([fix_summary, sac_summary], ignore_index=True)
-    final_df = final_df.sort_values(['timestamp']).reset_index(drop=True)
-
-    return final_df
 
 
 def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
