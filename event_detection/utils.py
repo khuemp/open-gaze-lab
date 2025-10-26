@@ -114,74 +114,108 @@ def clean_fixations(events_df):
 
 def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     """
-    Merges consecutive fixations that are close, re-classifying all gaze points
-    between them (including saccades) as part of the new, larger fixation event.
+    Merges consecutive fixations that are close to each other.
+    (Adapted from tldr.py to use pixel coordinates for distance
+    and to preserve saccades between merged fixations).
     """
-    fixation_events = gaze_data[gaze_data['event_type'] == 'Fixation'].groupby('fixation_id').agg(
-        fixation_x=('fixation_x', 'mean'),
-        fixation_y=('fixation_y', 'mean'),
-        start_time=('timestamp', 'min'),
-        end_time=('timestamp', 'max')
-    ).reset_index().rename(columns={"fixation_id": "event_id"})
-    
-    fixation_events = fixation_events.sort_values('start_time')
+    # Get unique fixation events
+    fixation_events = gaze_data[gaze_data['event_type'] == 'Fixation'].groupby('fixation_id').agg({
+        'fixation_x': 'mean',
+        'fixation_y': 'mean',
+        'timestamp': ['min', 'max'],
+        'fixation_id': 'first'
+    }).reset_index(drop=True)
 
-    if len(fixation_events) < 2:
+    # Rename columns
+    fixation_events.columns = ['fixation_x', 'fixation_y', 'start_time', 'end_time', 'event_id']
+
+    # Sort by event_id to ensure chronological order
+    fixation_events = fixation_events.sort_values('event_id')
+
+    # Create a new DataFrame to store merged fixations
+    merged_logic = [] # This list will store the new merged fixation dicts
+
+    # Initialize with the first fixation
+    if len(fixation_events) > 0:
+        current_fixation = fixation_events.iloc[0].copy()
+        
+        # --- THIS IS THE CRITICAL PART THAT CREATES 'merged_ids' ---
+        current_fixation['merged_ids'] = [current_fixation['event_id']] # <--- CREATE 'merged_ids'
+        # ---
+
+        # Loop through remaining fixations to check for merging
+        for i in range(1, len(fixation_events)):
+            next_fixation = fixation_events.iloc[i]
+
+            # Calculate distance using PIXEL coordinates
+            distance = ((current_fixation['fixation_x'] - next_fixation['fixation_x']) ** 2 +
+                       (current_fixation['fixation_y'] - next_fixation['fixation_y']) ** 2) ** 0.5
+
+            if distance <= fixation_merge_threshold:
+                # --- ( Logic to update x/y/end_time ) ---
+                total_duration_current = current_fixation['end_time'] - current_fixation['start_time']
+                total_duration_next = next_fixation['end_time'] - next_fixation['start_time']
+                total_duration = total_duration_current + total_duration_next
+
+                if total_duration > 0:
+                    current_fixation['fixation_x'] = (
+                        (current_fixation['fixation_x'] * total_duration_current) +
+                        (next_fixation['fixation_x'] * total_duration_next)
+                    ) / total_duration
+                    current_fixation['fixation_y'] = (
+                        (current_fixation['fixation_y'] * total_duration_current) +
+                        (next_fixation['fixation_y'] * total_duration_next)
+                    ) / total_duration
+                else:
+                    current_fixation['fixation_x'] = (current_fixation['fixation_x'] + next_fixation['fixation_x']) / 2
+                    current_fixation['fixation_y'] = (current_fixation['fixation_y'] + next_fixation['fixation_y']) / 2
+                
+                current_fixation['end_time'] = next_fixation['end_time']
+                
+                # --- ADD THE ID TO THE LIST ---
+                current_fixation['merged_ids'].append(next_fixation['event_id']) # <--- ADD to 'merged_ids'
+                # ---
+
+            else:
+                # Store the completed fixation
+                merged_logic.append(current_fixation)
+                # Start a new fixation
+                current_fixation = next_fixation.copy()
+                current_fixation['merged_ids'] = [current_fixation['event_id']] # <--- CREATE 'merged_ids' for new fix
+
+        # Add the very last fixation
+        merged_logic.append(current_fixation)
+
+    # If no fixations were found, return the original data
+    if not merged_logic:
         return gaze_data
 
-    merged_logic = []
-    current_fix = fixation_events.iloc[0].to_dict()
+    merged_event_map = {}
+    for idx, fixation in enumerate(merged_logic):
+        new_event_id = idx + 1
 
-    for i in range(1, len(fixation_events)):
-        next_fix = fixation_events.iloc[i].to_dict()
-        
-        distance = ((current_fix['fixation_x'] - next_fix['fixation_x']) ** 2 +
-                    (current_fix['fixation_y'] - next_fix['fixation_y']) ** 2) ** 0.5
+        for old_id in fixation['merged_ids']:
+            merged_event_map[old_id] = new_event_id
 
-        if distance <= fixation_merge_threshold:
-            total_duration_current = current_fix['end_time'] - current_fix['start_time']
-            total_duration_next = next_fix['end_time'] - next_fix['start_time']
-            total_duration = total_duration_current + total_duration_next
-
-            if total_duration > 0:
-                current_fix['fixation_x'] = ((current_fix['fixation_x'] * total_duration_current) + (next_fix['fixation_x'] * total_duration_next)) / total_duration
-                current_fix['fixation_y'] = ((current_fix['fixation_y'] * total_duration_current) + (next_fix['fixation_y'] * total_duration_next)) / total_duration
-            else:
-                current_fix['fixation_x'] = (current_fix['fixation_x'] + next_fix['fixation_x']) / 2
-                current_fix['fixation_y'] = (current_fix['fixation_y'] + next_fix['fixation_y']) / 2
-            
-            current_fix['end_time'] = next_fix['end_time']
-        
-        else:
-            merged_logic.append(current_fix)
-            current_fix = next_fix
-    
-    merged_logic.append(current_fix)
-
+    # Create a copy of the original data
     merged_data = gaze_data.copy()
-    
-    new_fixation_id_counter = 1
-    for merged_event in merged_logic:
-        new_id = new_fixation_id_counter
-        
-        min_start_time = merged_event['start_time']
-        max_end_time = merged_event['end_time']
-        
-        new_x = merged_event['fixation_x']
-        new_y = merged_event['fixation_y']
-        
-        mask = (merged_data['timestamp'] >= min_start_time) & (merged_data['timestamp'] <= max_end_time)
-        
-        merged_data.loc[mask, 'event_type'] = 'Fixation'
-        merged_data.loc[mask, 'fixation_id'] = new_id
-        merged_data.loc[mask, 'saccade_id'] = np.nan
-        merged_data.loc[mask, 'fixation_x'] = new_x
-        merged_data.loc[mask, 'fixation_y'] = new_y
-        
-        new_fixation_id_counter += 1
+
+    # Assign new fixation coordinates and event_ids
+    for old_id, new_id in merged_event_map.items():
+        # Find the corresponding merged fixation
+        merged_fix = [f for f in merged_logic if old_id in f['merged_ids']][0]
+
+        # Update all rows that were part of this original fixation
+        mask = merged_data['fixation_id'] == old_id
+        if mask.any():
+            merged_data.loc[mask, 'fixation_x'] = merged_fix['fixation_x']
+            merged_data.loc[mask, 'fixation_y'] = merged_fix['fixation_y']
+            merged_data.loc[mask, 'fixation_id'] = new_id
+            merged_data.loc[mask, 'saccade_id'] = np.nan
+    # Create a new column to track if an event has been merged
+    merged_data['merged'] = merged_data['fixation_id'].apply(lambda x: x in merged_event_map.values())
 
     return merged_data
-
 
 def merge_saccades(events_df):
     """
