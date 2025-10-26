@@ -95,7 +95,7 @@ def clean_fixations(events_df):
     if 'event_duration' not in events_df.columns:
          events_df['event_duration'] = np.nan
 
-    # --- 1. Calculate and Map Fixation Bounds ---
+    # Calculate and map fixation bounds
     fix_mask = events_df['fixation_id'].notna()
     if fix_mask.any():
         fix_bounds = (
@@ -110,7 +110,7 @@ def clean_fixations(events_df):
         # Map the newly calculated duration for all fixations
         events_df.loc[fix_mask, 'event_duration'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['event_duration'])
 
-    # --- 2. Calculate and Map Saccade Bounds ---
+    # Calculate and map saccade bounds
     sac_mask = events_df['saccade_id'].notna()
     if sac_mask.any():
         sac_bounds = (
@@ -184,9 +184,8 @@ def merge_fixations(gaze_data, fixation_merge_threshold=None):
     if len(fixation_events) > 0:
         current_fixation = fixation_events.iloc[0].copy()
         
-        # --- THIS IS THE CRITICAL PART THAT CREATES 'merged_ids' ---
-        current_fixation['merged_ids'] = [current_fixation['event_id']] # <--- CREATE 'merged_ids'
-        # ---
+        # Initialize list of merged fixation IDs
+        current_fixation['merged_ids'] = [current_fixation['event_id']]
 
         # Loop through remaining fixations to check for merging
         for i in range(1, len(fixation_events)):
@@ -197,7 +196,7 @@ def merge_fixations(gaze_data, fixation_merge_threshold=None):
                        (current_fixation['fixation_y'] - next_fixation['fixation_y']) ** 2) ** 0.5
 
             if distance <= fixation_merge_threshold:
-                # --- ( Logic to update x/y/end_time ) ---
+                # Calculate duration-weighted average position
                 total_duration_current = current_fixation['end_time'] - current_fixation['start_time']
                 total_duration_next = next_fixation['end_time'] - next_fixation['start_time']
                 total_duration = total_duration_current + total_duration_next
@@ -217,9 +216,8 @@ def merge_fixations(gaze_data, fixation_merge_threshold=None):
                 
                 current_fixation['end_time'] = next_fixation['end_time']
                 
-                # --- ADD THE ID TO THE LIST ---
-                current_fixation['merged_ids'].append(next_fixation['event_id']) # <--- ADD to 'merged_ids'
-                # ---
+                # Add the merged fixation ID to tracking list
+                current_fixation['merged_ids'].append(next_fixation['event_id'])
 
             else:
                 # Store the completed fixation

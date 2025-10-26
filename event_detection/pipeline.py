@@ -39,21 +39,21 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
             - aoi_id (int): Index of the assigned AOI
     """
     if not hasattr(self, 'is_valid_data') or not self.is_valid_data:
-        # Check if running in a class context, otherwise proceed
+        # Proceed even without class context
         pass
 
-    # Create a df with unique fixation points
+    # Extract unique fixation points from gaze data
     fixations = gaze_data[['fixation_id', 'fixation_x', 'fixation_y']].drop_duplicates()
 
-    # remove NaN values
+    # Filter out invalid coordinates
     fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
 
-    # Add columns for AOI classification
+    # Initialize AOI classification columns
     fixations['aoi_type'] = np.nan
     fixations['aoi'] = np.nan
     fixations['aoi_id'] = np.nan
 
-    # reset index
+    # Prepare for processing
     fixations.reset_index(drop=True, inplace=True)
 
     if algorithm == 'standard':
@@ -82,11 +82,11 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
                 fixations.loc[index, 'aoi_type'] = closest_aoi['aoi_type']
                 fixations.loc[index, 'aoi'] = closest_aoi['aoi']
                 fixations.loc[index, 'aoi_id'] = closest_aoi_index
-    # ... (other algorithms like bbox_attach would also use fixation_x/y) ...
+    # Additional algorithms can be implemented using similar coordinate-based logic
     else:
         raise ValueError(f"Unsupported AOI classification algorithm: {algorithm}")
 
-    # merge the aoi column with the gaze_data on fixation_id
+    # Merge classification results back into original data
     gaze_data = pd.merge(gaze_data, fixations[['fixation_id', 'aoi_type', 'aoi', 'aoi_id']], on='fixation_id', how='left')
     return gaze_data
 
@@ -294,8 +294,7 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
     )
 
     if event_gaze is not None:
-        # ALWAYS use clean_fixations to get the detailed, one-row-per-gaze-point output.
-        # This function will correctly calculate durations for both merged and unmerged data.
+        # Process fixations to ensure consistent duration calculations
         final_gaze_data = clean_fixations(event_gaze)
         
         final_gaze_data.to_csv(output_dir, index=False, sep=';')

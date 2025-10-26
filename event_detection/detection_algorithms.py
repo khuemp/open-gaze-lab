@@ -39,37 +39,36 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
             float: Final threshold after adaptation
         )
     """
-    # Work with a copy to avoid modifying original data
+    # Create independent copy of input data
     result_data = gaze_data.copy()
     
-    # Scale coordinates to pixels for dispersion/velocity calculation
+    # Extract coordinate arrays for efficient processing
     x = result_data['x'].values
     y = result_data['y'].values
     t = result_data['timestamp'].values
 
-    # Number of gaze points
+    # Initialize data structures for event detection
     n = len(x)
-    # Initialize event_type = 'Saccade', fixation_x = NaN, fixation_y = NaN, event_duration = NaN, fixation_id = 0
-    event_type = np.full(n, 'Saccade', dtype='U10')
-    fixation_x = np.full(n, np.nan)
-    fixation_y = np.full(n, np.nan)
-    event_duration = np.full(n, np.nan)
-    fixation_ids = np.full(n, np.nan) # Use NaN for non-fixation points
-    saccade_ids = np.full(n, np.nan)  # Use NaN for non-saccade points
+    event_type = np.full(n, 'Saccade', dtype='U10')        # Default label is saccade
+    fixation_x = np.full(n, np.nan)                        # Fixation center X
+    fixation_y = np.full(n, np.nan)                        # Fixation center Y
+    event_duration = np.full(n, np.nan)                    # Duration of each event
+    fixation_ids = np.full(n, np.nan)                      # Unique fixation identifiers
+    saccade_ids = np.full(n, np.nan)                      # Unique saccade identifiers
 
-    # Adaptive threshold computation
+    # Store initial threshold for potential adaptation
     original_threshold = threshold
     
-    # Create temporary dataframe with scaled coordinates for velocity computation
+    # Compute point-to-point velocities for threshold adaptation
     temp_df = pd.DataFrame({'x': x, 'y': y, 'timestamp': t})
     velocity = compute_velocity(temp_df)
 
-    # If adapt is True, compute velocity and MAD to adjust dispersion/velocity threshold
+    # Adapt threshold based on movement variability
     if adapt:
         if len(velocity) > 0:
             mad_velocity = compute_mad(velocity)
             if mad_velocity > 0:
-                # Adapt threshold: higher MAD = more noise = higher threshold
+                # Scale threshold by movement noise level
                 adaptation_factor = 1 + tuning_parameter * mad_velocity
                 threshold = original_threshold * adaptation_factor
 
@@ -192,14 +191,14 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 
         # Check if window meets minimum fixation duration
         if window_duration >= min_fixation_duration:
-            # Classify as fixation
+            # Mark window points as a fixation event
             event_type[start_idx:end_idx + 1] = 'Fixation'
             
-            # Calculate fixation center in normalized coordinates
+            # Calculate centroid of fixation points
             fix_x = np.mean(x[start_idx:end_idx + 1])
             fix_y = np.mean(y[start_idx:end_idx + 1])
             
-            # Assign fixation coordinates and duration to arrays that store results
+            # Record fixation properties for all points in window
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
@@ -247,37 +246,39 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
     start_idx = 0
     fixation_id = 1
     
-    # Expand velocity array so it matches number of gaze points
+    # Initialize first point velocity to zero
     if len(velocity) > 0:
-        velocity = np.insert(velocity, 0, 0.0)  # set first velocity to 0 for first gaze point
+        velocity = np.insert(velocity, 0, 0.0)  # First point has no previous point for velocity
 
     while start_idx < n:
         current_idx = start_idx
-        # Expand window while velocity is below threshold 
+        # Find consecutive points with velocity under threshold
         while current_idx < n:
             if velocity[current_idx] > velocity_threshold:
                 break
             current_idx += 1
 
-        # Calculate duration of the current low-velocity window
+        # Measure temporal span of low-velocity window
         end_idx = current_idx - 1 if current_idx > start_idx else start_idx
         window_duration = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
-        # Check if window meets minimum fixation duration
+        # Validate potential fixation duration
         if window_duration >= min_fixation_duration:
+            # Mark points as part of fixation event
             event_type[start_idx:end_idx + 1] = 'Fixation'
 
-            # Calculate fixation center
+            # Compute centroid of fixation points
             fix_x = np.mean(x[start_idx:end_idx + 1])
             fix_y = np.mean(y[start_idx:end_idx + 1])
 
+            # Record fixation properties for all points in window
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
             fixation_ids[start_idx:end_idx + 1] = fixation_id
             fixation_id += 1
 
-        # Move to next segment
+        # Advance to next potential fixation window
         start_idx = end_idx + 1
 
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
