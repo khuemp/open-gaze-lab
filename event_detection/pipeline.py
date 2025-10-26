@@ -7,9 +7,45 @@ from .detection_algorithms import classify_idt, classify_ivt
 
 
 def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
-    """
-    Checks if the fixation points are in the AOI or not.
-    (Note: Corrected to use 'fixation_x' and 'fixation_y')
+    """Classifies fixation points based on their relationship to Areas of Interest (AOIs).
+
+    Determines which AOI, if any, each fixation point belongs to using various classification
+    algorithms. Can use standard containment, closest AOI attachment, or weighted bounding box
+    methods for classification. Handles different methods of AOI assignment ranging from strict
+    containment to more flexible proximity-based approaches.
+
+    Args:
+        gaze_data (pd.DataFrame): Fixation data with columns:
+            - fixation_id (int): Unique fixation identifier
+            - fixation_x (float): X coordinate of fixation
+            - fixation_y (float): Y coordinate of fixation
+        aois (pd.DataFrame): AOI definitions with columns:
+            - aoi_type (str): Category or type of the AOI
+            - aoi (str): Name or identifier of the AOI
+            - pos_x (float): X coordinate of AOI's top-left corner
+            - pos_y (float): Y coordinate of AOI's top-left corner
+            - width (float): Width of the AOI
+            - height (float): Height of the AOI
+        algorithm (str, optional): AOI classification method to use:
+            - 'standard': Point containment within AOI bounds
+            - 'attach': Assign to nearest AOI center
+            - 'bbox_attach': Use expanded bounding boxes
+            - 'weighted_bbox_attach': Distance-weighted assignment
+            Defaults to 'weighted_bbox_attach'.
+
+    Returns:
+        pd.DataFrame: Input data with added columns:
+            - aoi_type (str): Type of the assigned AOI (NaN if unassigned)
+            - aoi (str): Name of the assigned AOI (NaN if unassigned)
+            - aoi_id (int): Index of the assigned AOI (NaN if unassigned)
+
+    Notes:
+        - NaN values in fixation coordinates are filtered out
+        - Only processes unique fixation points for efficiency
+        - 'standard' is the most strict, requiring points to be inside AOI bounds
+        - 'attach' is useful when fixations occur near but not inside AOIs
+        - The 'self' parameter is optional and only used for class integration
+        - Assignment is exclusive - each fixation is assigned to at most one AOI
     """
     if not hasattr(self, 'is_valid_data') or not self.is_valid_data:
         # Check if running in a class context, otherwise proceed
@@ -65,8 +101,36 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
 
 
 def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorithm=None, candidate_thresholds=None):
-    """
-    Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
+    """Optimizes detection threshold using cluster validity metrics.
+
+    Uses the Calinski-Harabasz score to evaluate the quality of fixation clusters produced
+    by different threshold values. Iteratively tests multiple threshold values to find the
+    one that produces the most well-defined fixation clusters. The optimal threshold
+    maximizes between-cluster separation while minimizing within-cluster spread.
+
+    Args:
+        gaze_data (pd.DataFrame): Input gaze data with columns:
+            - x (float): X coordinate in pixels
+            - y (float): Y coordinate in pixels
+            - timestamp (float): Time in milliseconds
+        min_fixation_duration (int, optional): Minimum time in milliseconds for a
+            fixation to be valid. Defaults to 50ms.
+        adapt (bool, optional): Whether to use adaptive thresholding based on
+            data characteristics. Defaults to False.
+        algorithm (str, optional): Detection algorithm to use. Must be either
+            'idt' (dispersion-based) or 'ivt' (velocity-based). Defaults to None.
+        candidate_thresholds (list[float], optional): List of threshold values to
+            evaluate. If None, uses [125, 150, 175, 200, 225, 250, 275, 300].
+
+    Returns:
+        float: Best performing threshold value based on cluster validity score.
+            Returns the first threshold if optimization fails.
+
+    Notes:
+        - Uses scikit-learn's Calinski-Harabasz score for cluster evaluation
+        - Requires at least 2 fixations to compute cluster validity
+        - Silently skips thresholds that produce invalid clustering results
+        - Higher scores indicate better-defined, more distinct fixation clusters
     """
     if candidate_thresholds is None:
         candidate_thresholds = [125, 150, 175, 200, 225, 250, 275, 300]
@@ -103,8 +167,43 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 def detect_event(self, min_fixation_duration=50, aois=None,
                             algorithm=None, detect_threshold=150.0, fixation_merge_threshold=None, adapt=False,
                             tuning_parameter=0.1, optimize=False):
-    """
-    Detects events, merges them if a threshold is provided, and re-indexes saccades.
+    """Detects fixation and saccade events in gaze data using specified algorithm.
+
+    Processes raw gaze data to identify fixations and saccades, optionally optimizes
+    detection parameters, merges events if specified, and classifies fixations into AOIs.
+    Uses either I-DT or I-VT algorithms for event detection.
+
+    Args:
+        min_fixation_duration (int, optional): Minimum time in milliseconds for a
+            fixation to be valid. Defaults to 50ms.
+        aois (pd.DataFrame, optional): Areas of Interest definitions. Should contain
+            columns: ['aoi_type', 'aoi', 'pos_x', 'pos_y', 'width', 'height'].
+            Defaults to None.
+        algorithm (str, optional): Detection algorithm to use ('idt' or 'ivt').
+            Defaults to None.
+        detect_threshold (float, optional): Initial threshold for detection algorithm.
+            For IVT: velocity in pixels/ms. For IDT: dispersion in pixels.
+            Defaults to 150.0.
+        fixation_merge_threshold (float, optional): Maximum distance in pixels between
+            fixations to be merged. If None, no merging occurs. Defaults to None.
+        adapt (bool, optional): Whether to use adaptive thresholding based on
+            data characteristics. Defaults to False.
+        tuning_parameter (float, optional): Sensitivity factor for adaptive
+            threshold adjustment. Defaults to 0.1.
+        optimize (bool, optional): Whether to optimize detection threshold using
+            cluster validity metrics. Defaults to False.
+
+    Returns:
+        tuple:
+            - pd.DataFrame or None: Processed gaze data with detected events and
+              their properties. None if processing fails.
+            - float or None: Final detection threshold used. If optimize=True,
+              this is the optimized threshold. None if processing fails.
+
+    Notes:
+        - Requires valid gaze data to be present in self.gaze_data
+        - Returns None, None if self.is_valid_data is False
+        - Event detection can fail if data format is incorrect or contains invalid values
     """
     if not self.is_valid_data:
         return None, None
@@ -138,9 +237,45 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
                             tuning_parameter=0.1, optimize=False, duration_cutoff: float = None):
-    """
-    Processes event detection and saves the result as a detailed, 
-    one-row-per-gaze-point CSV file for all scenarios.
+    """Processes and saves eye-tracking event detection results to a CSV file.
+
+    Performs complete event detection pipeline including optional duration trimming,
+    fixation/saccade detection, AOI classification, and data cleaning. Saves results
+    as a detailed CSV with one row per gaze point.
+
+    Args:
+        output_dir (str): Path where the output CSV file will be saved.
+        min_fixation_duration (int, optional): Minimum time in milliseconds for a
+            fixation to be valid. Defaults to 50ms.
+        aoi_file_path (str, optional): Path to CSV file containing AOI definitions.
+            Should have columns: ['aoi_type', 'aoi', 'pos_x', 'pos_y', 'width', 'height'].
+            Defaults to None.
+        algorithm (str, optional): Detection algorithm to use ('idt' or 'ivt').
+            Defaults to None.
+        fixation_merge_threshold (float, optional): Maximum distance in pixels between
+            fixations to be merged. If None, no merging occurs. Defaults to None.
+        detect_threshold (float, optional): Initial threshold for detection algorithm.
+            For IVT: velocity in pixels/ms. For IDT: dispersion in pixels.
+            Defaults to 150.0.
+        adapt (bool, optional): Whether to use adaptive thresholding based on
+            data characteristics. Defaults to False.
+        tuning_parameter (float, optional): Sensitivity factor for adaptive
+            threshold adjustment. Defaults to 0.1.
+        optimize (bool, optional): Whether to optimize detection threshold using
+            cluster validity metrics. Defaults to False.
+        duration_cutoff (float, optional): Maximum duration in milliseconds to process
+            from the end of the recording. If set, only processes the last X milliseconds.
+            Defaults to None (process all data).
+
+    Returns:
+        pd.DataFrame or None: Processed gaze data with all detected events and
+            their properties. Returns None if processing fails.
+
+    Notes:
+        - Output CSV uses semicolon (;) as delimiter
+        - Timestamps are adjusted to start at 0 when duration_cutoff is used
+        - All fixations are cleaned and recalculated before saving
+        - Logs success/failure messages through logging module
     """
 
     aois = None

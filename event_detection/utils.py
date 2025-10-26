@@ -2,15 +2,27 @@ import numpy as np
 import pandas as pd
 
 def compute_velocity(df):
-    """
-    Compute velocity for variable framerate data (5-30fps).
-    No modifications to original timestamps or data.
+    """Calculates point-to-point velocities for variable framerate gaze data.
+
+    Computes instantaneous velocities between consecutive gaze points, handling
+    variable sampling rates (5-30fps) without modifying original timestamps.
+    Uses Euclidean distance for spatial displacement.
 
     Args:
-        df (pd.DataFrame): DataFrame with 'x', 'y', and 'timestamp' columns.
+        df (pd.DataFrame): Gaze data with columns:
+            - x (float): X coordinate in pixels
+            - y (float): Y coordinate in pixels
+            - timestamp (float): Time in milliseconds
 
     Returns:
-        np.ndarray (np.float): Velocity array (coordinates per millisecond).
+        np.ndarray: Array of velocities in pixels per millisecond.
+            One fewer element than input due to differential calculation.
+            Empty array if insufficient valid points.
+
+    Notes:
+        - Handles missing data by removing NaN values
+        - Enforces minimum time interval of 0.033ms (30fps) to prevent division by zero
+        - Returns empty array if fewer than 2 valid points
     """
     # Ensure no NaNs in x, y, or timestamp
     df_clean = df.dropna(subset=['x', 'y', 'timestamp'])
@@ -32,8 +44,10 @@ def compute_velocity(df):
 
 
 def compute_mad(velocity):
-    """
-    Compute Median Absolute Deviation (MAD) with robust handling.
+    """Calculates the Median Absolute Deviation (MAD) of velocity values.
+
+    MAD is a robust measure of variability, less sensitive to outliers than
+    standard deviation. Used for adaptive threshold calculations.
 
     Args:
         velocity (np.ndarray): Array of velocity values.
@@ -54,19 +68,23 @@ def compute_mad(velocity):
 
 
 def clean_fixations(events_df):
-    """
-    Cleans and formats the event DataFrame by calculating start_time, 
-    end_time, and duration for all events (fixations and saccades)
-    and mapping these values back to *every gaze point* row.
-    
-    This function does NOT summarize the data and preserves the 
-    one-row-per-gaze-point format for all scenarios.
+    """Processes and validates fixation data ensuring correct event durations.
+
+    Takes raw event classification results and ensures all fixation-related
+    fields are properly populated and event durations are correctly calculated.
 
     Args:
-        events_df (pd.DataFrame): DataFrame containing event data (one row per gaze point).
+        events_df (pd.DataFrame): Event data with columns:
+            - event_type (str): 'Fixation' or 'Saccade'
+            - timestamp (float): Time in milliseconds
+            - fixation_x (float): X coordinate of fixation center
+            - fixation_y (float): Y coordinate of fixation center
+            - fixation_id (int): Unique fixation identifier
 
     Returns:
-        pd.DataFrame: Cleaned DataFrame with start/end/duration mapped to every row.
+        pd.DataFrame: Cleaned data with added/corrected columns:
+            - event_duration (float): Duration in milliseconds
+            All existing columns are preserved with validated values
     """
     # Drop unused columns if they exist
     events_df.drop(columns=["Unnamed: 4"], inplace=True, errors='ignore')
@@ -110,11 +128,40 @@ def clean_fixations(events_df):
     return events_df
 
 
-def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
-    """
-    Merges consecutive fixations that are close to each other.
-    (Adapted from tldr.py to use pixel coordinates for distance
-    and to preserve saccades between merged fixations).
+def merge_fixations(gaze_data, fixation_merge_threshold=None):
+    """Merges spatially and temporally close fixations into single fixation events.
+
+    Identifies consecutive fixations that are within a specified distance threshold
+    and combines them into unified fixation events. Uses duration-weighted averaging
+    for merged fixation coordinates to maintain gaze behavior representation.
+
+    Args:
+        gaze_data (pd.DataFrame): Event classification data with columns:
+            - event_type (str): 'Fixation' or 'Saccade'
+            - fixation_id (int): Unique fixation identifier
+            - fixation_x (float): X coordinate of fixation center
+            - fixation_y (float): Y coordinate in pixels
+            - timestamp (float): Time in milliseconds
+            - saccade_id (int): Unique saccade identifier
+        fixation_merge_threshold (float, optional): Maximum distance in pixels
+            between fixations to be considered for merging. If None, no
+            merging is performed. Defaults to None.
+
+    Returns:
+        pd.DataFrame: Updated gaze data with merged fixations, containing:
+            - All original columns
+            - Updated fixation_id values for merged events
+            - Updated fixation_x/y coordinates (duration-weighted averages)
+            - New 'merged' column indicating if fixation was combined
+            - Preserved saccade events between unmerged fixations
+
+    Notes:
+        - Maintains chronological order of events
+        - Uses pixel-based distance calculations
+        - Weights merged coordinates by fixation durations
+        - Falls back to simple averaging if duration calculation fails
+        - Returns original data unchanged if no fixations can be merged
+        - Clears saccade_ids for merged fixations to maintain consistency
     """
     # Get unique fixation events
     fixation_events = gaze_data[gaze_data['event_type'] == 'Fixation'].groupby('fixation_id').agg({
@@ -216,9 +263,22 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     return merged_data
 
 def merge_saccades(events_df):
-    """
-    Re-indexes saccade events. Designed to be run AFTER merge_fixations
-    to combine any saccades that are now adjacent.
+    """Updates saccade IDs after fixation merging or other modifications.
+
+    Ensures saccade events between fixations have correct, sequential IDs.
+    Should be called after any operation that modifies fixation classifications
+    or merges fixations.
+
+    Args:
+        events_df (pd.DataFrame): Event data with columns:
+            - event_type (str): 'Fixation' or 'Saccade'
+            - fixation_id (int): Unique fixation identifier
+            - saccade_id (int): Unique saccade identifier, may be NaN
+
+    Returns:
+        pd.DataFrame: Updated data with:
+            - Reassigned sequential saccade IDs
+            - All other columns preserved unchanged
     """
     events_df = events_df.sort_values(by="timestamp").reset_index(drop=True)
 

@@ -4,10 +4,40 @@ import pandas as pd
 from .utils import compute_velocity, compute_mad
 
 
-def prepare_classification_data(gaze_data, threshold, adapt=False, tuning_parameter=0.1, is_velocity_based=True):
-    """
-    Helper to prepare gaze data, scale coordinates, compute velocity, optionally adapt threshold,
-    and allocate result arrays for fixation classification algorithms.
+def prepare_classification_data(gaze_data: pd.DataFrame, 
+                          threshold: float, 
+                          adapt: bool = False, 
+                          tuning_parameter: float = 0.1, 
+                          is_velocity_based: bool = True) -> tuple:
+    """Prepares gaze data for fixation classification algorithms.
+
+    Prepares a copy of the gaze data, scales coordinates to pixels, computes velocity,
+    optionally adapts the threshold based on movement patterns, and allocates result arrays.
+
+    Args:
+        gaze_data (pd.DataFrame): Input gaze data with required columns:
+            - x (float): X coordinate
+            - y (float): Y coordinate
+            - timestamp (float): Time in milliseconds
+        threshold (float): Initial detection threshold in pixels
+        adapt (bool, optional): Whether to adapt threshold. Defaults to False.
+        tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.
+        is_velocity_based (bool, optional): True for IVT, False for IDT. Defaults to True.
+
+    Returns:
+        tuple: (
+            pd.DataFrame: Copy of input data,
+            np.ndarray: X coordinates array,
+            np.ndarray: Y coordinates array,
+            np.ndarray: Timestamps array,
+            np.ndarray: Event type labels array (initialized as 'Saccade'),
+            np.ndarray: Fixation X coordinates array (initialized as NaN),
+            np.ndarray: Fixation Y coordinates array (initialized as NaN),
+            np.ndarray: Event durations array (initialized as NaN),
+            np.ndarray: Fixation IDs array (initialized as NaN),
+            np.ndarray: Saccade IDs array (initialized as NaN),
+            float: Final threshold after adaptation
+        )
     """
     # Work with a copy to avoid modifying original data
     result_data = gaze_data.copy()
@@ -55,8 +85,28 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, tuning_parame
     return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids
 
 
-def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids):
-    """Assign additional columns with computed values to the DataFrame and return it."""
+def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
+                         event_duration, fixation_ids, saccade_ids):
+    """Finalizes classification results by adding computed values to the DataFrame.
+
+    Args:
+        result_data (pd.DataFrame): Original gaze data DataFrame
+        event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
+        fixation_x (np.ndarray): X coordinates of fixation centers
+        fixation_y (np.ndarray): Y coordinates of fixation centers
+        event_duration (np.ndarray): Duration of each event in milliseconds
+        fixation_ids (np.ndarray): Unique IDs for fixations
+        saccade_ids (np.ndarray): Unique IDs for saccades
+
+    Returns:
+        pd.DataFrame: Input DataFrame with added columns:
+            - event_type (str): Classification label
+            - fixation_x (float): X coordinate of fixation
+            - fixation_y (float): Y coordinate of fixation
+            - event_duration (float): Duration in milliseconds
+            - fixation_id (int): Unique fixation identifier
+            - saccade_id (int): Unique saccade identifier
+    """
     result_data['event_type'] = event_type
     result_data['fixation_x'] = fixation_x
     result_data['fixation_y'] = fixation_y
@@ -66,7 +116,15 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, e
     return result_data
 
 def add_saccade_ids(event_type, saccade_ids):
-    """Helper function to find consecutive saccades and assign them a unique ID."""
+    """Assigns unique IDs to consecutive sequences of saccade points.
+
+    Args:
+        event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
+        saccade_ids (np.ndarray): Array to store saccade IDs, initialized with NaN
+
+    Returns:
+        np.ndarray: Updated array with consecutive integers assigned to each sequence of saccade points
+    """
     saccade_id_counter = 1 # Saccade counter starts at 1
     in_saccade = False
     for i in range(len(event_type)):
@@ -81,7 +139,7 @@ def add_saccade_ids(event_type, saccade_ids):
 
 
 
-def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
+def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
     """
     Classifies gaze points into fixations and saccades using the I-DT algorithm.
     I-DT computes position of points in space and classifies points that are close together (low dispersion) as fixations.
@@ -155,20 +213,32 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
 
 
-def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
-    """
-    Classifies gaze points into fixations and saccades using the I-VT algorithm.
-    I-VT computes point-to-point velocities and classifies points as fixations if velocity is below a threshold.
-    Works with variable framerate data without modifying original timestamps.
+def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
+               adapt=False, tuning_parameter=0.1):
+    """Identifies fixations using the I-VT (Velocity Threshold) algorithm.
+
+    Classifies gaze points as fixations when their velocity is below a threshold for a
+    minimum duration. Uses point-to-point velocities and handles variable sampling rates
+    by using actual timestamps. Can adaptively adjust the threshold based on movement patterns.
 
     Args:
-        gaze_data (pd.DataFrame): Input gaze data with columns 'x','y','timestamp'. x,y assumed normalized [0,1].
-        velocity_threshold (float): Maximum allowed velocity (pixels/millisecond) for points considered in a fixation.
-        min_fixation_duration (float): Minimum fixation duration in milliseconds.
-        adapt (bool): If True, adapt the velocity_threshold based on MAD of velocities.
+        gaze_data (pd.DataFrame): Input data with required columns:
+            - x (float): X coordinate in pixels
+            - y (float): Y coordinate in pixels
+            - timestamp (float): Time in milliseconds
+        velocity_threshold (float, optional): Max velocity in pixels/ms. Defaults to 150.0.
+        min_fixation_duration (int, optional): Minimum fixation time in ms. Defaults to 50.
+        adapt (bool, optional): Whether to adapt threshold. Defaults to False.
+        tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.
 
     Returns:
-        pd.DataFrame: DataFrame with added columns: 'event_type','fixation_x','fixation_y','event_duration','fixation_id'.
+        pd.DataFrame: Original data with added columns:
+            - event_type (str): 'Fixation' or 'Saccade'
+            - fixation_x (float): X coordinate of fixation center
+            - fixation_y (float): Y coordinate of fixation center
+            - event_duration (float): Duration in milliseconds
+            - fixation_id (int): Unique fixation identifier
+            - saccade_id (int): Unique saccade identifier
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
      event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \

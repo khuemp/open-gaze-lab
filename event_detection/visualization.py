@@ -4,20 +4,37 @@ import plotly.offline as pyo
 
 def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=None, show_attach=True,
                                     attach_type='bbox'):
-    """
-    Visualize gaze points and fixations from eye-tracking data using Plotly.
+    """Creates an interactive visualization of gaze data, fixations, and AOIs.
+
+    Generates a Plotly-based interactive plot showing gaze points, fixations, and
+    optionally Areas of Interest (AOIs). The plot can include a background image
+    and different styles of AOI visualization.
 
     Args:
-        gaze_data (pd.DataFrame): DataFrame containing columns
-            'x', 'y' for gaze points and 'fixation_x', 'fixation_y' for fixation points.
-            An 'event_type' column is expected to classify gaze points as 'Fixation' or 'Saccade'.
-        bg_image_path (str): Path to background image to display in the plot.
-        aois (pd.DataFrame): DataFrame containing columns 'aoi_type', 'aoi', 'pos_x', 'pos_y', 'width', 'height'
-        show_attach (bool): Whether to visualize the results of the attach algorithm.
-        attach_type (str): Type of attachment to visualize ('centroid' or 'bbox').
+        output_dir (str): Path where the HTML plot file will be saved
+        bg_image_path (str, optional): Path to background image file. Defaults to None.
+        aois (pd.DataFrame, optional): AOI definitions with columns:
+            - aoi_type (str): Category of the AOI
+            - aoi (str): Name of the AOI
+            - pos_x (float): X coordinate of top-left corner
+            - pos_y (float): Y coordinate of top-left corner
+            - width (float): Width of the AOI
+            - height (float): Height of the AOI
+            Defaults to None.
+        show_attach (bool, optional): Whether to show AOI attachments. Defaults to True.
+        attach_type (str, optional): Style of AOI visualization:
+            - 'centroid': Show center points
+            - 'bbox': Show bounding boxes
+            Defaults to 'bbox'.
 
     Returns:
-        None: Creates and displays an interactive Plotly figure.
+        None: Saves an interactive HTML plot to the specified output directory
+    
+    Notes:
+        Requires self.event_data_df to contain:
+            - x, y: Raw gaze coordinates
+            - fixation_x, fixation_y: Fixation center coordinates
+            - event_type: 'Fixation' or 'Saccade'
     """
 
     gaze_data = self.event_data_df.copy()
