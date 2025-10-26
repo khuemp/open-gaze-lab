@@ -9,17 +9,17 @@ from .detection_algorithms import classify_idt, classify_ivt
 def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     """
     Checks if the fixation points are in the AOI or not.
-    (Note: Corrected to use 'norm_pos_x' and 'norm_pos_y')
+    (Note: Corrected to use 'fixation_x' and 'fixation_y')
     """
     if not hasattr(self, 'is_valid_data') or not self.is_valid_data:
         # Check if running in a class context, otherwise proceed
         pass
 
     # Create a df with unique fixation points
-    fixations = gaze_data[['fixation_id', 'norm_pos_x', 'norm_pos_y']].drop_duplicates()
+    fixations = gaze_data[['fixation_id', 'fixation_x', 'fixation_y']].drop_duplicates()
 
     # remove NaN values
-    fixations = fixations[fixations['norm_pos_x'].notna() & fixations['norm_pos_y'].notna()]
+    fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
 
     # Add columns for AOI classification
     fixations['aoi_type'] = np.nan
@@ -32,8 +32,8 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     if algorithm == 'standard':
         for index, row in fixations.iterrows():
             for aoi_index, aoi in aois.iterrows():
-                if aoi['pos_x'] <= row['norm_pos_x'] <= aoi['pos_x'] + aoi['width'] and \
-                   aoi['pos_y'] <= row['norm_pos_y'] <= aoi['pos_y'] + aoi['height']:
+                if aoi['pos_x'] <= row['fixation_x'] <= aoi['pos_x'] + aoi['width'] and \
+                   aoi['pos_y'] <= row['fixation_y'] <= aoi['pos_y'] + aoi['height']:
                     fixations.loc[index, 'aoi_type'] = aoi['aoi_type']
                     fixations.loc[index, 'aoi'] = aoi['aoi']
                     fixations.loc[index, 'aoi_id'] = aoi_index
@@ -46,7 +46,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
             for aoi_index, aoi in aois.iterrows():
                 aoi_center_x = aoi['pos_x'] + aoi['width'] / 2
                 aoi_center_y = aoi['pos_y'] + aoi['height'] / 2
-                distance = np.sqrt((row['norm_pos_x'] - aoi_center_x)**2 + (row['norm_pos_y'] - aoi_center_y)**2)
+                distance = np.sqrt((row['fixation_x'] - aoi_center_x)**2 + (row['fixation_y'] - aoi_center_y)**2)
                 if distance < min_distance:
                     min_distance = distance
                     closest_aoi = aoi
@@ -55,7 +55,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
                 fixations.loc[index, 'aoi_type'] = closest_aoi['aoi_type']
                 fixations.loc[index, 'aoi'] = closest_aoi['aoi']
                 fixations.loc[index, 'aoi_id'] = closest_aoi_index
-    # ... (other algorithms like bbox_attach would also use norm_pos_x/y) ...
+    # ... (other algorithms like bbox_attach would also use fixation_x/y) ...
     else:
         raise ValueError(f"Unsupported AOI classification algorithm: {algorithm}")
 
@@ -82,7 +82,7 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
                 classified_df = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
 
             fixation_mask = classified_df['event_type'] == 'Fixation'
-            fixation_points = classified_df[fixation_mask][['norm_pos_x', 'norm_pos_y']].values
+            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
             labels = classified_df[fixation_mask]['fixation_id'].values
 
             if len(np.unique(labels)) < 2:

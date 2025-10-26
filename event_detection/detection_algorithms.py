@@ -19,10 +19,10 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
 
     # Number of gaze points
     n = len(x)
-    # Initialize event_type = 'Saccade', norm_pos_x = NaN, norm_pos_y = NaN, event_duration = NaN, fixation_id = 0
+    # Initialize event_type = 'Saccade', fixation_x = NaN, fixation_y = NaN, event_duration = NaN, fixation_id = 0
     event_type = np.full(n, 'Saccade', dtype='U10')
-    norm_pos_x = np.full(n, np.nan)
-    norm_pos_y = np.full(n, np.nan)
+    fixation_x = np.full(n, np.nan)
+    fixation_y = np.full(n, np.nan)
     event_duration = np.full(n, np.nan)
     fixation_ids = np.full(n, np.nan) # Use NaN for non-fixation points
     saccade_ids = np.full(n, np.nan)  # Use NaN for non-saccade points
@@ -53,14 +53,14 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
         else:
             print(f"Using original threshold: {threshold} (no valid velocity)")
 
-    return result_data, x, y, t, n, threshold, velocity, event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids
+    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids
 
 
-def finalize_result_dataframe(result_data, event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids):
+def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids):
     """Assign additional columns with computed values to the DataFrame and return it."""
     result_data['event_type'] = event_type
-    result_data['norm_pos_x'] = norm_pos_x
-    result_data['norm_pos_y'] = norm_pos_y
+    result_data['fixation_x'] = fixation_x
+    result_data['fixation_y'] = fixation_y
     result_data['event_duration'] = event_duration
     result_data['fixation_id'] = fixation_ids
     result_data['saccade_id'] = saccade_ids
@@ -95,10 +95,10 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
 
     Returns:
-        pd.DataFrame: Gaze data with added 'event_type', 'norm_pos_x', 'norm_pos_y', and 'event_duration' columns.
+        pd.DataFrame: Gaze data with added 'event_type', 'fixation_x', 'fixation_y', and 'event_duration' columns.
     """
     (result_data, x, y, t, n, dispersion_threshold, velocity,
-     event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids) = \
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \
         prepare_classification_data(gaze_data, dispersion_threshold, adapt, is_velocity_based=False)
 
     start_idx = 0
@@ -143,8 +143,8 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
             fix_y = np.mean(y[start_idx:end_idx + 1])
             
             # Assign fixation coordinates and duration to arrays that store results
-            norm_pos_x[start_idx:end_idx + 1] = fix_x
-            norm_pos_y[start_idx:end_idx + 1] = fix_y
+            fixation_x[start_idx:end_idx + 1] = fix_x
+            fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
             fixation_ids[start_idx:end_idx + 1] = fixation_id
             fixation_id += 1
@@ -153,7 +153,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
 
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids)
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
 
 
 def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0/1000, adapt=False):
@@ -169,10 +169,10 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
         adapt (bool): If True, adapt the velocity_threshold based on MAD of velocities.
 
     Returns:
-        pd.DataFrame: DataFrame with added columns: 'event_type','norm_pos_x','norm_pos_y','event_duration','fixation_id'.
+        pd.DataFrame: DataFrame with added columns: 'event_type','fixation_x','fixation_y','event_duration','fixation_id'.
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
-     event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids) = \
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \
         prepare_classification_data(gaze_data, velocity_threshold, adapt, is_velocity_based=True)
 
     start_idx = 0
@@ -202,8 +202,8 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
             fix_x = np.mean(x[start_idx:end_idx + 1])
             fix_y = np.mean(y[start_idx:end_idx + 1])
 
-            norm_pos_x[start_idx:end_idx + 1] = fix_x
-            norm_pos_y[start_idx:end_idx + 1] = fix_y
+            fixation_x[start_idx:end_idx + 1] = fix_x
+            fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
             fixation_ids[start_idx:end_idx + 1] = fixation_id
             fixation_id += 1
@@ -213,4 +213,4 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50.0
 
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, norm_pos_x, norm_pos_y, event_duration, fixation_ids, saccade_ids)
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)

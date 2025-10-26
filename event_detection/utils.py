@@ -118,8 +118,8 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     between them (including saccades) as part of the new, larger fixation event.
     """
     fixation_events = gaze_data[gaze_data['event_type'] == 'Fixation'].groupby('fixation_id').agg(
-        norm_pos_x=('norm_pos_x', 'mean'),
-        norm_pos_y=('norm_pos_y', 'mean'),
+        fixation_x=('fixation_x', 'mean'),
+        fixation_y=('fixation_y', 'mean'),
         start_time=('timestamp', 'min'),
         end_time=('timestamp', 'max')
     ).reset_index().rename(columns={"fixation_id": "event_id"})
@@ -135,8 +135,8 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
     for i in range(1, len(fixation_events)):
         next_fix = fixation_events.iloc[i].to_dict()
         
-        distance = ((current_fix['norm_pos_x'] - next_fix['norm_pos_x']) ** 2 +
-                    (current_fix['norm_pos_y'] - next_fix['norm_pos_y']) ** 2) ** 0.5
+        distance = ((current_fix['fixation_x'] - next_fix['fixation_x']) ** 2 +
+                    (current_fix['fixation_y'] - next_fix['fixation_y']) ** 2) ** 0.5
 
         if distance <= fixation_merge_threshold:
             total_duration_current = current_fix['end_time'] - current_fix['start_time']
@@ -144,11 +144,11 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
             total_duration = total_duration_current + total_duration_next
 
             if total_duration > 0:
-                current_fix['norm_pos_x'] = ((current_fix['norm_pos_x'] * total_duration_current) + (next_fix['norm_pos_x'] * total_duration_next)) / total_duration
-                current_fix['norm_pos_y'] = ((current_fix['norm_pos_y'] * total_duration_current) + (next_fix['norm_pos_y'] * total_duration_next)) / total_duration
+                current_fix['fixation_x'] = ((current_fix['fixation_x'] * total_duration_current) + (next_fix['fixation_x'] * total_duration_next)) / total_duration
+                current_fix['fixation_y'] = ((current_fix['fixation_y'] * total_duration_current) + (next_fix['fixation_y'] * total_duration_next)) / total_duration
             else:
-                current_fix['norm_pos_x'] = (current_fix['norm_pos_x'] + next_fix['norm_pos_x']) / 2
-                current_fix['norm_pos_y'] = (current_fix['norm_pos_y'] + next_fix['norm_pos_y']) / 2
+                current_fix['fixation_x'] = (current_fix['fixation_x'] + next_fix['fixation_x']) / 2
+                current_fix['fixation_y'] = (current_fix['fixation_y'] + next_fix['fixation_y']) / 2
             
             current_fix['end_time'] = next_fix['end_time']
         
@@ -167,16 +167,16 @@ def merge_fixations(gaze_data, fixation_merge_threshold=100.0):
         min_start_time = merged_event['start_time']
         max_end_time = merged_event['end_time']
         
-        new_x = merged_event['norm_pos_x']
-        new_y = merged_event['norm_pos_y']
+        new_x = merged_event['fixation_x']
+        new_y = merged_event['fixation_y']
         
         mask = (merged_data['timestamp'] >= min_start_time) & (merged_data['timestamp'] <= max_end_time)
         
         merged_data.loc[mask, 'event_type'] = 'Fixation'
         merged_data.loc[mask, 'fixation_id'] = new_id
         merged_data.loc[mask, 'saccade_id'] = np.nan
-        merged_data.loc[mask, 'norm_pos_x'] = new_x
-        merged_data.loc[mask, 'norm_pos_y'] = new_y
+        merged_data.loc[mask, 'fixation_x'] = new_x
+        merged_data.loc[mask, 'fixation_y'] = new_y
         
         new_fixation_id_counter += 1
 
