@@ -21,26 +21,17 @@ if __name__ == '__main__':
             try:
                 # This loop now also handles the timestamp conversion.
                 for delim in [';', ',', '\t', ' ']:
-                    gaze_file = pd.read_csv(csv_path, delimiter=delim)
-                    if gaze_file.shape[1] > 1:  # Check if delimiter worked
-                        
-                        # If the delimiter was a comma, convert the timestamp
-                        if delim == ',':
-                            gaze_file['timestamp'] /= 1000.0
-                        
+                    gaze_data = pd.read_csv(csv_path, delimiter=delim)
+                    if gaze_data.shape[1] > 1:  # Check if delimiter worked
                         break # Exit loop once the correct delimiter is found
 
-                # Add resolution scaling here
-                gaze_file['x'] *= 2560  
-                gaze_file['y'] *= 1440  
-
-                event_detection = EventDetection(gaze_file)
+                event_detection = EventDetection(gaze_data)
 
                 event_output_path = os.path.join(event_folder, f"{os.path.splitext(filename)[0]}_events.csv")
 
                 event_results = event_detection.process_event(
                     output_dir=event_output_path,
-                    min_fixation_duration=0.1,  # in seconds
+                    min_fixation_duration=100,  # in milliseconds
                     fixation_merge_threshold=None,  # in pixels
                     detect_threshold=125.0, # in pixels
                     adapt=False,

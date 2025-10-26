@@ -16,16 +16,28 @@ class EventDetection:
         detect_event(detect_plot=False): Detects events in the loaded gaze data and returns a tuple of discrete time intervals and class labels.
     """
 
-    def __init__(self, loaded_gaze_df):
+    def __init__(self, loaded_gaze_df, resolution=(2560, 1440), timestamp_unit='ms'):
         """Initializes the EventDetection class."""
         self.gaze_data = loaded_gaze_df.copy()
         self.is_valid_data = True
+        # Resolution scaling
+        self.gaze_data['x'] *= resolution[0]
+        self.gaze_data['y'] *= resolution[1]
+
+        # Possible timestamp unit handling
+        if timestamp_unit == 's':
+            self.gaze_data['timestamp'] *= 1000  # Convert seconds to milliseconds
+        elif timestamp_unit == 'epoch_s':
+            self.gaze_data['timestamp'] = (self.gaze_data['timestamp'] - self.gaze_data['timestamp'].iloc[0]) * 1000
+        elif timestamp_unit == 'ms':
+            pass  # Already in milliseconds
+        else:
+            raise ValueError("timestamp_unit must be either 's' for seconds or 'ms' for milliseconds")
 
         # Configure logger
         logging.basicConfig(
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
         )
-
 
         # Bind external functions as methods
         self.detect_event = detect_event.__get__(self)

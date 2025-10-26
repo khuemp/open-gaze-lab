@@ -10,7 +10,7 @@ def compute_velocity(df):
         df (pd.DataFrame): DataFrame with 'x', 'y', and 'timestamp' columns.
 
     Returns:
-        np.ndarray (np.float): Velocity array (coordinates per second).
+        np.ndarray (np.float): Velocity array (coordinates per millisecond).
     """
     # Ensure no NaNs in x, y, or timestamp
     df_clean = df.dropna(subset=['x', 'y', 'timestamp'])

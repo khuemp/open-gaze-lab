@@ -82,7 +82,7 @@ def add_saccade_ids(event_type, saccade_ids):
 
 
 
-def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=0.05, adapt=False):
+def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50, adapt=False):
     """
     Classifies gaze points into fixations and saccades using the I-DT algorithm.
     I-DT computes position of points in space and classifies points that are close together (low dispersion) as fixations.
@@ -91,7 +91,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=0.
     Args:
         gaze_data (pd.DataFrame): DataFrame containing gaze data with 'x', 'y', and 'timestamp' columns.
         dispersion_threshold (float): Maximum allowed dispersion within a fixation window (in pixels).
-        min_fixation_duration (float): Minimum duration (in seconds) for a fixation to be considered valid.
+        min_fixation_duration (float): Minimum duration (in milliseconds) for a fixation to be considered valid.
         adapt (bool): Whether to adapt the dispersion threshold based on velocity.
 
     Returns:
@@ -156,7 +156,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=0.
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
 
 
-def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=0.05, adapt=False):
+def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50, adapt=False):
     """
     Classifies gaze points into fixations and saccades using the I-VT algorithm.
     I-VT computes point-to-point velocities and classifies points as fixations if velocity is below a threshold.
@@ -164,8 +164,8 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=0.05
 
     Args:
         gaze_data (pd.DataFrame): Input gaze data with columns 'x','y','timestamp'. x,y assumed normalized [0,1].
-        velocity_threshold (float): Maximum allowed velocity (pixels/second) for points considered in a fixation.
-        min_fixation_duration (float): Minimum fixation duration in seconds.
+        velocity_threshold (float): Maximum allowed velocity (pixels/millisecond) for points considered in a fixation.
+        min_fixation_duration (float): Minimum fixation duration in milliseconds.
         adapt (bool): If True, adapt the velocity_threshold based on MAD of velocities.
 
     Returns:

@@ -64,7 +64,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     return gaze_data
 
 
-def optimize_threshold(gaze_data, min_fixation_duration=0.05, adapt=False, algorithm=None, candidate_thresholds=None):
+def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorithm=None, candidate_thresholds=None):
     """
     Optimize dispersion threshold using cluster validity metrics (Calinski-Harabasz score).
     """
@@ -100,7 +100,7 @@ def optimize_threshold(gaze_data, min_fixation_duration=0.05, adapt=False, algor
     return best_threshold
 
 
-def detect_event(self, min_fixation_duration=0.05, aois=None,
+def detect_event(self, min_fixation_duration=50, aois=None,
                             algorithm=None, detect_threshold=150.0, fixation_merge_threshold=None, adapt=False,
                             optimize=False):
     """
@@ -135,13 +135,14 @@ def detect_event(self, min_fixation_duration=0.05, aois=None,
     return data, best_thresh
 
 
-def process_event(self, output_dir, min_fixation_duration=0.05, aoi_file_path=None, algorithm=None,
+def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
                             optimize=False, duration_cutoff: float = None):
     """
     Processes event detection and saves the result as a detailed, 
     one-row-per-gaze-point CSV file for all scenarios.
     """
+
     aois = None
     if aoi_file_path is not None:
         aois = pd.read_csv(aoi_file_path)
