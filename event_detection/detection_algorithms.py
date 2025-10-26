@@ -4,7 +4,7 @@ import pandas as pd
 from .utils import compute_velocity, compute_mad
 
 
-def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_based=True):
+def prepare_classification_data(gaze_data, threshold, adapt=False, tuning_parameter=0.1, is_velocity_based=True):
     """
     Helper to prepare gaze data, scale coordinates, compute velocity, optionally adapt threshold,
     and allocate result arrays for fixation classification algorithms.
@@ -40,8 +40,7 @@ def prepare_classification_data(gaze_data, threshold, adapt=False, is_velocity_b
             mad_velocity = compute_mad(velocity)
             if mad_velocity > 0:
                 # Adapt threshold: higher MAD = more noise = higher threshold
-                alpha = 0.1  # Tuning parameter
-                adaptation_factor = 1 + alpha * mad_velocity
+                adaptation_factor = 1 + tuning_parameter * mad_velocity
                 threshold = original_threshold * adaptation_factor
 
                 metric = "velocity" if is_velocity_based else "dispersion"
@@ -82,7 +81,7 @@ def add_saccade_ids(event_type, saccade_ids):
 
 
 
-def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50, adapt=False):
+def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
     """
     Classifies gaze points into fixations and saccades using the I-DT algorithm.
     I-DT computes position of points in space and classifies points that are close together (low dispersion) as fixations.
@@ -99,7 +98,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
     """
     (result_data, x, y, t, n, dispersion_threshold, velocity,
      event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \
-        prepare_classification_data(gaze_data, dispersion_threshold, adapt, is_velocity_based=False)
+        prepare_classification_data(gaze_data, dispersion_threshold, adapt, tuning_parameter, is_velocity_based=False)
 
     start_idx = 0
     fixation_id = 1
@@ -156,7 +155,7 @@ def classify_idt(gaze_data, dispersion_threshold=100.0, min_fixation_duration=50
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
 
 
-def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50, adapt=False):
+def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
     """
     Classifies gaze points into fixations and saccades using the I-VT algorithm.
     I-VT computes point-to-point velocities and classifies points as fixations if velocity is below a threshold.
@@ -173,7 +172,7 @@ def classify_ivt(gaze_data, velocity_threshold=100.0, min_fixation_duration=50, 
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
      event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids) = \
-        prepare_classification_data(gaze_data, velocity_threshold, adapt, is_velocity_based=True)
+        prepare_classification_data(gaze_data, velocity_threshold, adapt, tuning_parameter,is_velocity_based=True)
 
     start_idx = 0
     fixation_id = 1

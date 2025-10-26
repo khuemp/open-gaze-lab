@@ -35,7 +35,6 @@ if __name__ == '__main__':
                     fixation_merge_threshold=None,  # in pixels
                     detect_threshold=125.0, # in pixels
                     adapt=False,
-                    optimize=False,
                     algorithm='idt'
                 )
 

@@ -102,7 +102,7 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 
 def detect_event(self, min_fixation_duration=50, aois=None,
                             algorithm=None, detect_threshold=150.0, fixation_merge_threshold=None, adapt=False,
-                            optimize=False):
+                            tuning_parameter=0.1, optimize=False):
     """
     Detects events, merges them if a threshold is provided, and re-indexes saccades.
     """
@@ -114,9 +114,9 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 
     try:
         if algorithm == 'idt':
-            data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         elif algorithm == 'ivt':
-            data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
@@ -137,7 +137,7 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 
 def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
-                            optimize=False, duration_cutoff: float = None):
+                            tuning_parameter=0.1, optimize=False, duration_cutoff: float = None):
     """
     Processes event detection and saves the result as a detailed, 
     one-row-per-gaze-point CSV file for all scenarios.
@@ -163,6 +163,7 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         fixation_merge_threshold=fixation_merge_threshold,
         detect_threshold=detect_threshold,
         adapt=adapt,
+        tuning_parameter=tuning_parameter,
         optimize=optimize
     )
 
