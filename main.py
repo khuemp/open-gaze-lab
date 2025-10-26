@@ -5,14 +5,14 @@ from event_detection import EventDetection, EyeTrackingVisualizer
 if __name__ == '__main__':
     script_dir = os.path.abspath(os.path.dirname(__file__))
     input_folder = os.path.join(script_dir, 'gaze_data')
-    event_folder = os.path.join(script_dir, 'event_results')
-    plots_folder = os.path.join(script_dir, 'plots')
+    event_folder = os.path.join(script_dir, 'event_data')
+    scanpath_folder = os.path.join(script_dir, 'scanpath_data')
 
     if not os.path.isdir(input_folder):
         raise FileNotFoundError(f"Input folder not found: {input_folder}")
 
     os.makedirs(event_folder, exist_ok=True)
-    os.makedirs(plots_folder, exist_ok=True)
+    os.makedirs(scanpath_folder, exist_ok=True)
 
     for filename in os.listdir(input_folder):
         if filename.lower().endswith('.csv'):
@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
                 event_detection = EventDetection(gaze_data)
 
-                event_output_path = os.path.join(event_folder, f"{os.path.splitext(filename)[0]}_events.csv")
+                event_output_path = os.path.join(event_folder, f"{os.path.splitext(filename)[0]}.csv")
 
                 event_results = event_detection.process_event(
                     output_dir=event_output_path,
@@ -38,7 +38,7 @@ if __name__ == '__main__':
                     algorithm='idt'
                 )
 
-                plot_output_path = os.path.join(plots_folder, f"{os.path.splitext(filename)[0]}_plot.html")
+                plot_output_path = os.path.join(scanpath_folder, f"{os.path.splitext(filename)[0]}.html")
 
                 event_visualizer = EyeTrackingVisualizer(event_results)
                 event_visualizer.plot_gaze_points_and_fixations(

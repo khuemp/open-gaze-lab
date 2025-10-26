@@ -154,7 +154,5 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             )
             fig.add_trace(line)
 
-    # Show the figure in the default web browser
-    pyo.plot(fig)
     # Save the figure to an HTML file
     pyo.plot(fig, filename=output_dir, auto_open=False)
