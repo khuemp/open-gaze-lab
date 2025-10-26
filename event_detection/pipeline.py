@@ -11,8 +11,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
 
     Determines which AOI, if any, each fixation point belongs to using various classification
     algorithms. Can use standard containment, closest AOI attachment, or weighted bounding box
-    methods for classification. Handles different methods of AOI assignment ranging from strict
-    containment to more flexible proximity-based approaches.
+    methods for classification.
 
     Args:
         gaze_data (pd.DataFrame): Fixation data with columns:
@@ -35,17 +34,9 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
 
     Returns:
         pd.DataFrame: Input data with added columns:
-            - aoi_type (str): Type of the assigned AOI (NaN if unassigned)
-            - aoi (str): Name of the assigned AOI (NaN if unassigned)
-            - aoi_id (int): Index of the assigned AOI (NaN if unassigned)
-
-    Notes:
-        - NaN values in fixation coordinates are filtered out
-        - Only processes unique fixation points for efficiency
-        - 'standard' is the most strict, requiring points to be inside AOI bounds
-        - 'attach' is useful when fixations occur near but not inside AOIs
-        - The 'self' parameter is optional and only used for class integration
-        - Assignment is exclusive - each fixation is assigned to at most one AOI
+            - aoi_type (str): Type of the assigned AOI
+            - aoi (str): Name of the assigned AOI
+            - aoi_id (int): Index of the assigned AOI
     """
     if not hasattr(self, 'is_valid_data') or not self.is_valid_data:
         # Check if running in a class context, otherwise proceed
