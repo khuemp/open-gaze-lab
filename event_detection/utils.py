@@ -74,8 +74,8 @@ def clean_fixations(events_df):
     events_df['start_time'] = np.nan
     events_df['end_time'] = np.nan
     
-    if 'duration' not in events_df.columns:
-         events_df['duration'] = np.nan
+    if 'event_duration' not in events_df.columns:
+         events_df['event_duration'] = np.nan
 
     # --- 1. Calculate and Map Fixation Bounds ---
     fix_mask = events_df['fixation_id'].notna()
@@ -85,12 +85,12 @@ def clean_fixations(events_df):
             .groupby('fixation_id', dropna=False)['timestamp']
             .agg(start_time='min', end_time='max')
         )
-        fix_bounds['duration'] = fix_bounds['end_time'] - fix_bounds['start_time']
+        fix_bounds['event_duration'] = fix_bounds['end_time'] - fix_bounds['start_time']
         
         events_df.loc[fix_mask, 'start_time'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['start_time'])
         events_df.loc[fix_mask, 'end_time'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['end_time'])
         # Map the newly calculated duration for all fixations
-        events_df.loc[fix_mask, 'duration'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['duration'])
+        events_df.loc[fix_mask, 'event_duration'] = events_df.loc[fix_mask, 'fixation_id'].map(fix_bounds['event_duration'])
 
     # --- 2. Calculate and Map Saccade Bounds ---
     sac_mask = events_df['saccade_id'].notna()
@@ -100,13 +100,11 @@ def clean_fixations(events_df):
             .groupby('saccade_id', dropna=False)['timestamp']
             .agg(start_time='min', end_time='max')
         )
-        sac_bounds['duration'] = sac_bounds['end_time'] - sac_bounds['start_time']
+        sac_bounds['event_duration'] = sac_bounds['end_time'] - sac_bounds['start_time']
 
         events_df.loc[sac_mask, 'start_time'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['start_time'])
         events_df.loc[sac_mask, 'end_time'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['end_time'])
-        events_df.loc[sac_mask, 'duration'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['duration'])
-
-    events_df.rename(columns={"event_duration": "original_gaze_point_duration"}, inplace=True, errors='ignore')
+        events_df.loc[sac_mask, 'event_duration'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['event_duration'])
     
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
     return events_df

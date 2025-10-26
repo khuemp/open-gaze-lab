@@ -40,8 +40,8 @@ if __name__ == '__main__':
 
                 event_results = event_detection.process_event(
                     output_dir=event_output_path,
-                    min_fixation_duration=100.0/1000.0,  # in seconds
-                    fixation_merge_threshold=None,
+                    min_fixation_duration=0.1,  # in seconds
+                    fixation_merge_threshold=None,  # in pixels
                     detect_threshold=125.0, # in pixels
                     adapt=False,
                     optimize=False,

@@ -19,7 +19,6 @@ class EventDetection:
     def __init__(self, loaded_gaze_df):
         """Initializes the EventDetection class."""
         self.gaze_data = loaded_gaze_df.copy()
-        self.gaze_data = self.gaze_data.loc[~((self.gaze_data["x"] == 0.0) & (self.gaze_data["y"] == 1.0))].reset_index(drop=True)
         self.is_valid_data = True
 
         # Configure logger
