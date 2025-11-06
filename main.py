@@ -29,13 +29,13 @@ if __name__ == '__main__':
                     if gaze_data.shape[1] > 1:  # Check if delimiter worked
                         break # Exit loop once the correct delimiter is found
 
-                event_detection = EventDetection(gaze_data)
+                event_detection = EventDetection(gaze_data, )
 
                 event_output_path = os.path.join(folders['event'], f"{os.path.splitext(filename)[0]}.csv")
 
                 event_results = event_detection.process_event(
                     output_dir=event_output_path,
-                    min_fixation_duration=100,  # in milliseconds
+                    min_fixation_duration=100.0,  # in milliseconds
                     fixation_merge_threshold=None,  # in pixels
                     detect_threshold=125.0, # in pixels
                     adapt=False,
