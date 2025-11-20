@@ -29,7 +29,7 @@ if __name__ == '__main__':
                     if gaze_data.shape[1] > 1:  # Check if delimiter worked
                         break # Exit loop once the correct delimiter is found
 
-                event_detection = EventDetection(gaze_data, )
+                event_detection = EventDetection(gaze_data, resolution=(2560, 1440))
 
                 event_output_path = os.path.join(folders['event'], f"{os.path.splitext(filename)[0]}.csv")
 
@@ -39,7 +39,8 @@ if __name__ == '__main__':
                     fixation_merge_threshold=None,  # in pixels
                     detect_threshold=125.0, # in pixels
                     adapt=False,
-                    algorithm='idt'
+                    algorithm='idt',
+                    sampling_rate=30 # Hz
                 )
 
                 plot_output_path = os.path.join(folders['scanpath'], f"{os.path.splitext(filename)[0]}.html")

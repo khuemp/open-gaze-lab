@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import logging
 from sklearn.metrics import calinski_harabasz_score
-from .utils import clean_fixations, merge_fixations, merge_saccades
+from .utils import clean_fixations, merge_fixations, merge_saccades, correct_timestamps
 from .detection_algorithms import classify_idt, classify_ivt
 
 
@@ -227,12 +227,13 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 
 def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
-                            tuning_parameter=0.1, optimize=False, duration_cutoff: float = None):
+                            tuning_parameter=0.1, optimize=False, duration_cutoff: float = None,
+                            sampling_rate: float = None):
     """Processes and saves eye-tracking event detection results to a CSV file.
 
-    Performs complete event detection pipeline including optional duration trimming,
-    fixation/saccade detection, AOI classification, and data cleaning. Saves results
-    as a detailed CSV with one row per gaze point.
+    Performs complete event detection pipeline including optional timestamp correction,
+    duration trimming, fixation/saccade detection, AOI classification, and data cleaning.
+    Saves results as a detailed CSV with one row per gaze point.
 
     Args:
         output_dir (str): Path where the output CSV file will be saved.
@@ -257,6 +258,8 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         duration_cutoff (float, optional): Maximum duration in milliseconds to process
             from the end of the recording. If set, only processes the last X milliseconds.
             Defaults to None (process all data).
+        sampling_rate (float, optional): Nominal sampling rate in Hz (e.g., 30, 60, 120).
+            If provided, corrects timestamps to uniform intervals. Defaults to None.
 
     Returns:
         pd.DataFrame or None: Processed gaze data with all detected events and
@@ -265,6 +268,7 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
     Notes:
         - Output CSV uses semicolon (;) as delimiter
         - Timestamps are adjusted to start at 0 when duration_cutoff is used
+        - Timestamp correction uses fixed intervals: 1000/sampling_rate ms
         - All fixations are cleaned and recalculated before saving
         - Logs success/failure messages through logging module
     """
@@ -272,6 +276,10 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
     aois = None
     if aoi_file_path is not None:
         aois = pd.read_csv(aoi_file_path)
+
+    # Apply timestamp correction if sampling rate is provided
+    if sampling_rate is not None:
+        self.gaze_data = correct_timestamps(self.gaze_data, sampling_rate)
 
     if duration_cutoff is not None:
         total_duration = self.gaze_data["timestamp"].iloc[-1]

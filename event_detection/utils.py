@@ -1,6 +1,36 @@
 import numpy as np
 import pandas as pd
 
+def correct_timestamps(df, sampling_rate):
+    """Corrects timestamps to uniform intervals based on sampling rate.
+
+    Regenerates timestamps with fixed intervals calculated from the nominal
+    sampling rate, starting from the first timestamp. Useful for correcting
+    irregular timestamps caused by recording issues or data loss.
+
+    Args:
+        df (pd.DataFrame): Gaze data with timestamp column
+        sampling_rate (float): Nominal sampling rate in Hz (e.g., 30, 60, 120)
+
+    Returns:
+        pd.DataFrame: Copy of input data with corrected timestamps
+
+    Notes:
+        - Interval between samples = 1000 / sampling_rate (in milliseconds)
+        - Preserves original first timestamp as reference point
+        - Creates uniform temporal spacing regardless of input irregularities
+    """
+    df_corrected = df.copy()
+    interval_ms = 1000.0 / sampling_rate  # Time between samples in ms
+    first_timestamp = df_corrected['timestamp'].iloc[0]
+    
+    # Generate uniform timestamps
+    num_samples = len(df_corrected)
+    df_corrected['timestamp'] = first_timestamp + np.arange(num_samples) * interval_ms
+    
+    return df_corrected
+
+
 def compute_velocity(df):
     """Calculates point-to-point velocities for variable framerate gaze data.
 
