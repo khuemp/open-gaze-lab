@@ -94,19 +94,16 @@ function App() {
 
                     <div className="control-group">
                         <label htmlFor="detect-threshold">Detection Threshold</label>
-                        <div className="slider-container">
-                            <input
-                                id="detect-threshold"
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                value={detectThreshold}
-                                onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
-                                className="slider"
-                            />
-                            <span className="threshold-value">{detectThreshold.toFixed(2)}</span>
-                        </div>
+                        <input
+                            id="detect-threshold"
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={detectThreshold}
+                            onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
+                            className="input-field"
+                        />
                     </div>
 
                     <div className="control-group">

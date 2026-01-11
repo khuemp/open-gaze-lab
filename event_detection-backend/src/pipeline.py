@@ -305,10 +305,21 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         # Process fixations to ensure consistent duration calculations
         final_gaze_data = clean_fixations(event_gaze)
         
-        final_gaze_data.to_csv(output_dir, index=False, sep=';')
-        logging.info(f"Processed and saved event data in {output_dir}")
+        # Store the processed data in the instance
+        self.event_data_df = final_gaze_data
+        
+        # Construct proper file path if output_dir is a directory
+        import os
+        if os.path.isdir(output_dir):
+            output_file = os.path.join(output_dir, 'processed_events.csv')
+        else:
+            output_file = output_dir
+        
+        final_gaze_data.to_csv(output_file, index=False, sep=';')
+        logging.info(f"Processed and saved event data in {output_file}")
     else:
         logging.error("Failed to process event data")
+        self.event_data_df = None
         return None
     
     return final_gaze_data

@@ -42,7 +42,7 @@ if __name__ == '__main__':
                     detect_threshold=125.0, # in pixels
                     adapt=False,
                     algorithm='idt',
-                    sampling_rate=30 # Hz
+                    sampling_rate=250 # Hz
                 )
 
                 plot_output_path = os.path.join(folders['scanpath'], f"{os.path.splitext(filename)[0]}.html")

@@ -3,6 +3,7 @@ __pycache__/
 
 # Data files
 data_example/
+data/
 
 # Dependencies
 node_modules/

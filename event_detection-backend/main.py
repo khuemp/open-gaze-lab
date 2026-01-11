@@ -11,12 +11,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from datetime import datetime
-import sys
-import shutil
 
-# Import functions directly from src modules
-from src.pipeline import process_event
-from src.visualization import plot_gaze_points_and_fixations
+# Import classes from src
+from src import EventDetection, EyeTrackingVisualizer
 
 app = FastAPI(
     title="Eye Tracking Fixation Detection API",
@@ -171,31 +168,12 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     print(f"[INFO] CSV shape: {gaze_data.shape}")
     print(f"[INFO] Columns: {gaze_data.columns.tolist()}")
     
-    # Prepare gaze data - scale coordinates to screen resolution
-    gaze_data = gaze_data.copy()
-    gaze_data['x'] *= resolution[0]
-    gaze_data['y'] *= resolution[1]
+    # Initialize EventDetection with the gaze data
+    detector = EventDetection(gaze_data, resolution=resolution)
+    print(f"[INFO] EventDetection initialized with resolution {resolution}")
     
-    # Convert timestamps to milliseconds if needed
-    if 'timestamp' in gaze_data.columns:
-        first_timestamp = gaze_data['timestamp'].iloc[0]
-        if first_timestamp > 1000:  # If timestamps are in seconds
-            gaze_data['timestamp'] = (gaze_data['timestamp'] - first_timestamp) * 1000
-    
-    print(f"[INFO] Gaze data prepared with resolution {resolution}, sampling_rate {sampling_rate}")
-    
-    # Create a simple object to hold the data (mimicking the class structure)
-    class GazeDataHolder:
-        def __init__(self, data):
-            self.gaze_data = data
-            self.event_data_df = None
-            self.is_valid_data = True
-    
-    holder = GazeDataHolder(gaze_data)
-    
-    # Process events using the function directly
-    process_event(
-        holder,
+    # Process events using the class method
+    detector.process_event(
         output_dir=str(RESULTS_FOLDER),
         min_fixation_duration=min_fixation_duration,
         detect_threshold=detect_threshold,
@@ -206,13 +184,13 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     
     # Save events CSV
     events_output_file = RESULTS_FOLDER / f"{output_name}_events.csv"
-    holder.event_data_df.to_csv(events_output_file, index=False)
+    detector.event_data_df.to_csv(events_output_file, index=False)
     print(f"[INFO] Events saved to: {events_output_file}")
     
-    # Create visualization using the function directly
+    # Create visualization using EyeTrackingVisualizer class
     try:
-        plot_gaze_points_and_fixations(
-            holder,
+        visualizer = EyeTrackingVisualizer(detector.event_data_df)
+        visualizer.plot_gaze_points_and_fixations(
             str(RESULTS_FOLDER),
             bg_image_path=None,
             aois=None,
@@ -229,9 +207,9 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     return {
         'events_file': str(events_output_file.relative_to(BASE_DIR)),
         'plot_file': str(plot_file.relative_to(BASE_DIR)) if plot_file else None,
-        'num_events': len(holder.event_data_df),
-        'num_fixations': len(holder.event_data_df[holder.event_data_df['event_type'] == 'Fixation']),
-        'num_saccades': len(holder.event_data_df[holder.event_data_df['event_type'] == 'Saccade'])
+        'num_events': len(detector.event_data_df),
+        'num_fixations': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Fixation']),
+        'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade'])
     }
 
 
