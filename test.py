@@ -1,6 +1,8 @@
 import pandas as pd
 import os
-from event_detection import EventDetection, EyeTrackingVisualizer
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'event_detection-backend'))
+from src import EventDetection, EyeTrackingVisualizer
 
 if __name__ == '__main__':
 

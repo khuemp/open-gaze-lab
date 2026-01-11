@@ -2,7 +2,11 @@ const { useState } = React;
 
 function App() {
     const [file, setFile] = useState(null);
-    const [threshold, setThreshold] = useState(0.5);
+    const [resolution, setResolution] = useState('2560,1440');
+    const [minFixationDuration, setMinFixationDuration] = useState(50);
+    const [detectThreshold, setDetectThreshold] = useState(0.5);
+    const [algorithm, setAlgorithm] = useState('idt');
+    const [samplingRate, setSamplingRate] = useState(1000);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -10,10 +14,6 @@ function App() {
     const handleFileSelect = (selectedFile) => {
         setFile(selectedFile);
         setError(null);
-    };
-
-    const handleThresholdChange = (value) => {
-        setThreshold(value);
     };
 
     const handleProcess = async () => {
@@ -29,15 +29,20 @@ function App() {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('threshold', threshold.toString());
+            formData.append('resolution', resolution);
+            formData.append('min_fixation_duration', minFixationDuration.toString());
+            formData.append('detect_threshold', detectThreshold.toString());
+            formData.append('algorithm', algorithm);
+            formData.append('sampling_rate', samplingRate.toString());
 
-            const response = await fetch('/api/process', {
+            const response = await fetch('http://127.0.0.1:5000/api/upload', {
                 method: 'POST',
                 body: formData,
             });
 
             if (!response.ok) {
-                throw new Error(`API error: ${response.statusText}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `API error: ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -62,10 +67,71 @@ function App() {
                 </div>
 
                 <div className="panel">
-                    <ThresholdControls
-                        threshold={threshold}
-                        onChange={handleThresholdChange}
-                    />
+                    <h2>⚙️ Detection Parameters</h2>
+
+                    <div className="control-group">
+                        <label htmlFor="resolution">Display Resolution (WxH)</label>
+                        <input
+                            id="resolution"
+                            type="text"
+                            value={resolution}
+                            onChange={(e) => setResolution(e.target.value)}
+                            placeholder="2560,1440"
+                            className="input-field"
+                        />
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="min-fixation">Min Fixation Duration (ms)</label>
+                        <input
+                            id="min-fixation"
+                            type="number"
+                            value={minFixationDuration}
+                            onChange={(e) => setMinFixationDuration(parseInt(e.target.value))}
+                            className="input-field"
+                        />
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="detect-threshold">Detection Threshold</label>
+                        <div className="slider-container">
+                            <input
+                                id="detect-threshold"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={detectThreshold}
+                                onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
+                                className="slider"
+                            />
+                            <span className="threshold-value">{detectThreshold.toFixed(2)}</span>
+                        </div>
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="algorithm">Algorithm</label>
+                        <select
+                            id="algorithm"
+                            value={algorithm}
+                            onChange={(e) => setAlgorithm(e.target.value)}
+                            className="input-field"
+                        >
+                            <option value="idt">IDT (Identification by Two-Thresholds)</option>
+                            <option value="ivt">IVT (Identification by Velocity Threshold)</option>
+                        </select>
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
+                        <input
+                            id="sampling-rate"
+                            type="number"
+                            value={samplingRate}
+                            onChange={(e) => setSamplingRate(parseInt(e.target.value))}
+                            className="input-field"
+                        />
+                    </div>
                 </div>
 
                 <button
@@ -77,6 +143,8 @@ function App() {
                 </button>
 
                 {error && <div className="error-message">{error}</div>}
+
+                {loading && <div className="loading-spinner">Processing...</div>}
 
                 {results && <ResultsDisplay results={results} />}
             </main>
@@ -121,60 +189,6 @@ function FileUpload({ onFileSelect, fileName }) {
     );
 }
 
-function ThresholdControls({ threshold, onChange }) {
-    return (
-        <div className="threshold-controls">
-            <h2>⚙️ Detection Parameters</h2>
-
-            <div className="control-group">
-                <label htmlFor="threshold-slider">Fixation Threshold</label>
-                <div className="slider-container">
-                    <input
-                        id="threshold-slider"
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={threshold}
-                        onChange={(e) => onChange(parseFloat(e.target.value))}
-                        className="slider"
-                    />
-                    <span className="threshold-value">{threshold.toFixed(2)}</span>
-                </div>
-                <p className="threshold-hint">
-                    Lower values: more sensitive (detects more fixations)
-                    <br />
-                    Higher values: more strict (detects fewer fixations)
-                </p>
-            </div>
-
-            <div className="presets">
-                <p className="presets-label">Quick presets:</p>
-                <div className="preset-buttons">
-                    <button
-                        className={`preset-btn ${threshold === 0.3 ? 'active' : ''}`}
-                        onClick={() => onChange(0.3)}
-                    >
-                        Sensitive
-                    </button>
-                    <button
-                        className={`preset-btn ${threshold === 0.5 ? 'active' : ''}`}
-                        onClick={() => onChange(0.5)}
-                    >
-                        Medium
-                    </button>
-                    <button
-                        className={`preset-btn ${threshold === 0.8 ? 'active' : ''}`}
-                        onClick={() => onChange(0.8)}
-                    >
-                        Strict
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 function ResultsDisplay({ results }) {
     return (
         <div className="results-container">
@@ -186,17 +200,17 @@ function ResultsDisplay({ results }) {
                     <div className="result-info">
                         <p className="result-label">Fixations Detected</p>
                         <p className="result-value">
-                            {results.fixation_count || 0}
+                            {results.result?.num_fixations || 0}
                         </p>
                     </div>
                 </div>
 
                 <div className="result-card">
-                    <div className="result-icon">⏱️</div>
+                    <div className="result-icon">⚡</div>
                     <div className="result-info">
-                        <p className="result-label">Processing Time</p>
+                        <p className="result-label">Saccades</p>
                         <p className="result-value">
-                            {results.processing_time?.toFixed(2) || '0'}s
+                            {results.result?.num_saccades || 0}
                         </p>
                     </div>
                 </div>
@@ -204,9 +218,9 @@ function ResultsDisplay({ results }) {
                 <div className="result-card">
                     <div className="result-icon">📈</div>
                     <div className="result-info">
-                        <p className="result-label">Data Points</p>
+                        <p className="result-label">Total Events</p>
                         <p className="result-value">
-                            {results.total_points || 0}
+                            {results.result?.num_events || 0}
                         </p>
                     </div>
                 </div>
@@ -215,7 +229,7 @@ function ResultsDisplay({ results }) {
                     <div className="result-icon">✓</div>
                     <div className="result-info">
                         <p className="result-label">Status</p>
-                        <p className="result-value">Complete</p>
+                        <p className="result-value">{results.success ? 'Complete' : 'Failed'}</p>
                     </div>
                 </div>
             </div>
@@ -226,12 +240,25 @@ function ResultsDisplay({ results }) {
                 </div>
             )}
 
-            {results.details && (
-                <div className="results-details">
-                    <h3>Additional Information</h3>
-                    <pre>{JSON.stringify(results.details, null, 2)}</pre>
-                </div>
-            )}
+            <div className="results-actions">
+                {results.result?.events_file && (
+                    <a
+                        href={`http://127.0.0.1:5000/api/results/${results.filename}`}
+                        className="download-button"
+                        download
+                    >
+                        ⬇️ Download Events CSV
+                    </a>
+                )}
+                {results.result?.plot_file && (
+                    <button
+                        className="view-button"
+                        onClick={() => window.open(`http://127.0.0.1:5000/api/plot/${results.filename}`, '_blank')}
+                    >
+                        📊 View Plot
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
