@@ -46,29 +46,32 @@ def compute_velocity(df):
 
     Returns:
         np.ndarray: Array of velocities in pixels per millisecond.
-            One fewer element than input due to differential calculation.
-            Empty array if insufficient valid points.
+            Same length as input (prepends 0 at start).
+            Velocities involving NaN coordinates become NaN.
 
     Notes:
-        - Handles missing data by removing NaN values
+        - NaN values in x/y coordinates propagate to NaN velocities
+        - This allows tracking of blinks and missing data locations
         - Enforces minimum time interval of 0.033ms (30fps) to prevent division by zero
-        - Returns empty array if fewer than 2 valid points
+        - Returns array of zeros if fewer than 2 points
     """
-    # Ensure no NaNs in x, y, or timestamp
-    df_clean = df.dropna(subset=['x', 'y', 'timestamp'])
+    if len(df) < 2:
+        return np.zeros(len(df))
     
-    if len(df_clean) < 2:
-        return np.array([])
+    # Compute differences - NaN values will propagate naturally
+    dx = df['x'].diff().values[1:]
+    dy = df['y'].diff().values[1:]
+    dt = df['timestamp'].diff().values[1:]
     
-    # Compute differences
-    dx = df_clean['x'].diff().values[1:]
-    dy = df_clean['y'].diff().values[1:]
-    dt = df_clean['timestamp'].diff().values[1:]
-    
+    # Handle zero or negative time intervals (but preserve NaN)
     min_dt = 0.033  # 30fps as minimum reasonable interval
-    dt[dt <= 0] = min_dt 
+    dt = np.where((dt > 0) | np.isnan(dt), dt, min_dt)
     
-    velocity = np.sqrt(dx ** 2 + dy ** 2) / dt 
+    # Calculate velocity - NaN in dx/dy will produce NaN velocity
+    velocity = np.sqrt(dx ** 2 + dy ** 2) / dt
+    
+    # Prepend 0 at start to match input length (like cateyes does)
+    velocity = np.concatenate([[0.], velocity])
     
     return velocity
 

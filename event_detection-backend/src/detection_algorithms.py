@@ -245,10 +245,6 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
 
     start_idx = 0
     fixation_id = 1
-    
-    # Initialize first point velocity to zero
-    if len(velocity) > 0:
-        velocity = np.insert(velocity, 0, 0.0)  # First point has no previous point for velocity
 
     while start_idx < n:
         current_idx = start_idx
