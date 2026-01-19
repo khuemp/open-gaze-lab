@@ -7,6 +7,8 @@ function App() {
     const [detectThreshold, setDetectThreshold] = useState(125);
     const [algorithm, setAlgorithm] = useState('idt');
     const [samplingRate, setSamplingRate] = useState(250);
+    const [fixationMergeThreshold, setFixationMergeThreshold] = useState(null);
+    const [adapt, setAdapt] = useState(false);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -34,6 +36,10 @@ function App() {
             formData.append('detect_threshold', detectThreshold.toString());
             formData.append('algorithm', algorithm);
             formData.append('sampling_rate', samplingRate.toString());
+            if (fixationMergeThreshold !== null && fixationMergeThreshold !== undefined) {
+                formData.append('fixation_merge_threshold', fixationMergeThreshold.toString());
+            }
+            formData.append('adapt', adapt.toString());
 
             const response = await fetch('http://127.0.0.1:5000/api/upload', {
                 method: 'POST',
@@ -128,6 +134,33 @@ function App() {
                             onChange={(e) => setSamplingRate(parseInt(e.target.value))}
                             className="input-field"
                         />
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="fixation-merge">Fixation Merge Threshold (px, optional)</label>
+                        <input
+                            id="fixation-merge"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={fixationMergeThreshold || ''}
+                            onChange={(e) => setFixationMergeThreshold(e.target.value ? parseFloat(e.target.value) : null)}
+                            placeholder="None"
+                            className="input-field"
+                        />
+                    </div>
+
+                    <div className="control-group">
+                        <label htmlFor="adapt">
+                            <input
+                                id="adapt"
+                                type="checkbox"
+                                checked={adapt}
+                                onChange={(e) => setAdapt(e.target.checked)}
+                                style={{ marginRight: '8px' }}
+                            />
+                            Enable Adaptive Threshold
+                        </label>
                     </div>
                 </div>
 

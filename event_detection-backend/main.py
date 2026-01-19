@@ -6,6 +6,7 @@ Handles CSV file uploads and processes them using the detection pipeline.
 import os
 import json
 from pathlib import Path
+from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,7 +68,9 @@ async def upload_file(
     min_fixation_duration: int = Form(50),
     detect_threshold: float = Form(0.5),
     algorithm: str = Form("idt"),
-    sampling_rate: int = Form(1000)
+    sampling_rate: int = Form(1000),
+    fixation_merge_threshold: Optional[float] = Form(None),
+    adapt: bool = Form(False)
 ):
     """
     Upload CSV file and parameters for processing.
@@ -78,6 +81,8 @@ async def upload_file(
     - **detect_threshold**: Detection threshold (0.0-1.0)
     - **algorithm**: Detection algorithm ('idt' or 'ivt')
     - **sampling_rate**: Sampling rate in Hz
+    - **fixation_merge_threshold**: Maximum distance to merge fixations (pixels, optional)
+    - **adapt**: Enable adaptive threshold adjustment (boolean)
     """
     # Validate file
     if not file.filename:
@@ -115,7 +120,9 @@ async def upload_file(
         detect_threshold=detect_threshold,
         algorithm=algorithm,
         sampling_rate=sampling_rate,
-        output_name=original_name
+        output_name=original_name,
+        fixation_merge_threshold=fixation_merge_threshold,
+        adapt=adapt
     )
     
     return {
@@ -127,7 +134,8 @@ async def upload_file(
 
 
 def process_gaze_data(file_path, resolution, min_fixation_duration, 
-                     detect_threshold, algorithm, sampling_rate, output_name):
+                     detect_threshold, algorithm, sampling_rate, output_name,
+                     fixation_merge_threshold=None, adapt=False):
     """
     Process gaze data CSV file using EventDetection pipeline.
     
@@ -139,6 +147,8 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         algorithm: 'idt' or 'ivt'
         sampling_rate: Sampling rate in Hz
         output_name: Output filename prefix
+        fixation_merge_threshold: Maximum distance to merge fixations (pixels, optional)
+        adapt: Enable adaptive threshold adjustment (boolean)
     
     Returns:
         Dictionary with processing results
@@ -158,7 +168,9 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         min_fixation_duration=min_fixation_duration,
         detect_threshold=detect_threshold,
         algorithm=algorithm,
-        sampling_rate=sampling_rate
+        sampling_rate=sampling_rate,
+        fixation_merge_threshold=fixation_merge_threshold,
+        adapt=adapt
     )
     
     # Save events CSV
