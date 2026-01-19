@@ -3,10 +3,10 @@ const { useState } = React;
 function App() {
     const [file, setFile] = useState(null);
     const [resolution, setResolution] = useState('2560,1440');
-    const [minFixationDuration, setMinFixationDuration] = useState(50);
-    const [detectThreshold, setDetectThreshold] = useState(0.5);
+    const [minFixationDuration, setMinFixationDuration] = useState(100);
+    const [detectThreshold, setDetectThreshold] = useState(125);
     const [algorithm, setAlgorithm] = useState('idt');
-    const [samplingRate, setSamplingRate] = useState(1000);
+    const [samplingRate, setSamplingRate] = useState(250);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);

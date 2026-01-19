@@ -130,27 +130,23 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
     best_threshold = candidate_thresholds[0]
 
     for detect_threshold in candidate_thresholds:
-        try:
-            if algorithm == 'idt':
-                classified_df = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
-            else:
-                classified_df = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+        if algorithm == 'idt':
+            classified_df = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+        else:
+            classified_df = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
 
-            fixation_mask = classified_df['event_type'] == 'Fixation'
-            fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
-            labels = classified_df[fixation_mask]['fixation_id'].values
+        fixation_mask = classified_df['event_type'] == 'Fixation'
+        fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
+        labels = classified_df[fixation_mask]['fixation_id'].values
 
-            if len(np.unique(labels)) < 2:
-                continue
-
-            score = calinski_harabasz_score(fixation_points, labels)
-
-            if score > best_score:
-                best_score = score
-                best_threshold = detect_threshold
-        except Exception as e:
-            print(f"Error with threshold {detect_threshold}: {str(e)}")
+        if len(np.unique(labels)) < 2:
             continue
+
+        score = calinski_harabasz_score(fixation_points, labels)
+
+        if score > best_score:
+            best_score = score
+            best_threshold = detect_threshold
 
     return best_threshold
 
@@ -200,7 +196,6 @@ def detect_event(self, min_fixation_duration=50, aois=None,
         return None, None
     
     best_thresh = optimize_threshold(self.gaze_data, adapt=adapt, algorithm=algorithm) if optimize else detect_threshold
-    print(f"Best Threshold: {best_thresh}")
 
     try:
         if algorithm == 'idt':
@@ -308,15 +303,8 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         # Store the processed data in the instance
         self.event_data_df = final_gaze_data
         
-        # Construct proper file path if output_dir is a directory
-        import os
-        if os.path.isdir(output_dir):
-            output_file = os.path.join(output_dir, 'processed_events.csv')
-        else:
-            output_file = output_dir
-        
-        final_gaze_data.to_csv(output_file, index=False, sep=';')
-        logging.info(f"Processed and saved event data in {output_file}")
+        # No longer saving processed_events.csv here - handled in main.py with custom naming
+        logging.info(f"Event data processing completed")
     else:
         logging.error("Failed to process event data")
         self.event_data_df = None

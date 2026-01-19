@@ -72,15 +72,6 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
                 adaptation_factor = 1 + tuning_parameter * mad_velocity
                 threshold = original_threshold * adaptation_factor
 
-                metric = "velocity" if is_velocity_based else "dispersion"
-                print(f"Original {metric} threshold: {original_threshold:.2f}, "
-                      f"MAD velocity: {mad_velocity:.4f}, "
-                      f"Adaptive threshold: {threshold:.2f}")
-            else:
-                print(f"Using original threshold: {threshold} (MAD = 0)")
-        else:
-            print(f"Using original threshold: {threshold} (no valid velocity)")
-
     return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids
 
 

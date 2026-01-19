@@ -33,9 +33,11 @@ app.add_middleware(
 # Configure paths
 BASE_DIR = Path(__file__).parent
 UPLOAD_FOLDER = BASE_DIR / 'data' / 'uploads'
-RESULTS_FOLDER = BASE_DIR / 'data' / 'results'
+EVENTS_FOLDER = BASE_DIR / 'data' / 'events'
+VISUALIZATION_FOLDER = BASE_DIR / 'data' / 'visualization'
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
+EVENTS_FOLDER.mkdir(parents=True, exist_ok=True)
+VISUALIZATION_FOLDER.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
@@ -77,67 +79,51 @@ async def upload_file(
     - **algorithm**: Detection algorithm ('idt' or 'ivt')
     - **sampling_rate**: Sampling rate in Hz
     """
-    try:
-        # Validate file
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file selected")
-        
-        if not file.filename.endswith('.csv'):
-            raise HTTPException(status_code=400, detail="File must be a CSV file")
-        
-        # Check file size
-        content = await file.read()
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
-        
-        # Parse resolution
-        try:
-            width, height = map(int, resolution.split(','))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid resolution format. Use 'width,height'")
-        
-        # Save uploaded file
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{file.filename}"
-        file_path = UPLOAD_FOLDER / filename
-        
-        with open(file_path, 'wb') as f:
-            f.write(content)
-        
-        print(f"[INFO] File saved: {file_path}")
-        
-        # Process the file
-        try:
-            result = process_gaze_data(
-                file_path,
-                resolution=(width, height),
-                min_fixation_duration=min_fixation_duration,
-                detect_threshold=detect_threshold,
-                algorithm=algorithm,
-                sampling_rate=sampling_rate,
-                output_name=timestamp
-            )
-            
-            return {
-                "success": True,
-                "message": "File processed successfully",
-                "filename": timestamp,
-                "result": result
-            }
-            
-        except Exception as e:
-            print(f"[ERROR] Processing failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+    # Validate file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[ERROR] Upload failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    
+    # Check file size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
+    
+    # Parse resolution
+    try:
+        width, height = map(int, resolution.split(','))
+    except:
+        raise HTTPException(status_code=400, detail="Invalid resolution format. Use 'width,height'")
+    
+    # Save uploaded file
+    filename = f"{file.filename}"
+    file_path = UPLOAD_FOLDER / filename
+    
+    # Get original filename without extension for output naming
+    original_name = Path(file.filename).stem
+    
+    with open(file_path, 'wb') as f:
+        f.write(content)
+    
+    # Process the file
+    result = process_gaze_data(
+        file_path,
+        resolution=(width, height),
+        min_fixation_duration=min_fixation_duration,
+        detect_threshold=detect_threshold,
+        algorithm=algorithm,
+        sampling_rate=sampling_rate,
+        output_name=original_name
+    )
+    
+    return {
+        "success": True,
+        "message": "File processed successfully",
+        "filename": original_name,
+        "result": result
+    }
 
 
 def process_gaze_data(file_path, resolution, min_fixation_duration, 
@@ -157,52 +143,37 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     Returns:
         Dictionary with processing results
     """
-    print(f"[INFO] Starting processing: {file_path}")
-    
     # Detect delimiter
     delimiter = detect_delimiter(file_path)
-    print(f"[INFO] Detected delimiter: {repr(delimiter)}")
     
     # Read CSV
     gaze_data = pd.read_csv(file_path, sep=delimiter)
-    print(f"[INFO] CSV shape: {gaze_data.shape}")
-    print(f"[INFO] Columns: {gaze_data.columns.tolist()}")
     
     # Initialize EventDetection with the gaze data
     detector = EventDetection(gaze_data, resolution=resolution)
-    print(f"[INFO] EventDetection initialized with resolution {resolution}")
     
     # Process events using the class method
     detector.process_event(
-        output_dir=str(RESULTS_FOLDER),
+        output_dir=str(EVENTS_FOLDER),
         min_fixation_duration=min_fixation_duration,
         detect_threshold=detect_threshold,
         algorithm=algorithm,
         sampling_rate=sampling_rate
     )
-    print(f"[INFO] Event detection completed")
     
     # Save events CSV
-    events_output_file = RESULTS_FOLDER / f"{output_name}_events.csv"
+    events_output_file = EVENTS_FOLDER / f"{output_name}_events.csv"
     detector.event_data_df.to_csv(events_output_file, index=False)
-    print(f"[INFO] Events saved to: {events_output_file}")
     
     # Create visualization using EyeTrackingVisualizer class
-    try:
-        visualizer = EyeTrackingVisualizer(detector.event_data_df)
-        visualizer.plot_gaze_points_and_fixations(
-            str(RESULTS_FOLDER),
-            bg_image_path=None,
-            aois=None,
-            show_attach=False
-        )
-        plot_file = RESULTS_FOLDER / 'gaze_plot.html'
-        print(f"[INFO] Plot created: {plot_file}")
-    except Exception as e:
-        print(f"[WARNING] Visualization failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        plot_file = None
+    plot_file = VISUALIZATION_FOLDER / f"{output_name}_visualization.html"
+    visualizer = EyeTrackingVisualizer(detector.event_data_df)
+    visualizer.plot_gaze_points_and_fixations(
+        str(plot_file),
+        bg_image_path=None,
+        aois=None,
+        show_attach=False
+    )
     
     return {
         'events_file': str(events_output_file.relative_to(BASE_DIR)),
@@ -216,7 +187,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
 @app.get("/api/results/{filename}")
 async def get_results_csv(filename: str):
     """Download events CSV file."""
-    file_path = RESULTS_FOLDER / f"{filename}_events.csv"
+    file_path = EVENTS_FOLDER / f"{filename}_events.csv"
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -230,7 +201,7 @@ async def get_results_csv(filename: str):
 @app.get("/api/plot/{filename}")
 async def get_plot(filename: str):
     """Get the HTML plot content."""
-    plot_file = RESULTS_FOLDER / 'gaze_plot.html'
+    plot_file = VISUALIZATION_FOLDER / f"{filename}_visualization.html"
     if not plot_file.exists():
         raise HTTPException(status_code=404, detail="Plot not found")
     
@@ -242,6 +213,4 @@ async def get_plot(filename: str):
 
 if __name__ == '__main__':
     import uvicorn
-    print("[INFO] Starting FastAPI server...")
-    print("[INFO] API documentation available at: http://127.0.0.1:5000/docs")
     uvicorn.run(app, host="127.0.0.1", port=5000)
