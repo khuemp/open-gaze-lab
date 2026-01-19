@@ -200,7 +200,7 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids), dispersion_threshold
 
 
 def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
@@ -270,4 +270,4 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
 
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids)
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids), velocity_threshold

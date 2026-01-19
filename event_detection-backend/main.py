@@ -192,7 +192,8 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         'plot_file': str(plot_file.relative_to(BASE_DIR)) if plot_file else None,
         'num_events': len(detector.event_data_df),
         'num_fixations': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Fixation']),
-        'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade'])
+        'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade']),
+        'best_threshold': detector.best_threshold if hasattr(detector, 'best_threshold') else None
     }
 
 

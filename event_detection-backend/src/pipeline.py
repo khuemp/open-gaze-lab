@@ -131,9 +131,9 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 
     for detect_threshold in candidate_thresholds:
         if algorithm == 'idt':
-            classified_df = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            classified_df, _ = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
         else:
-            classified_df = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            classified_df, _ = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
 
         fixation_mask = classified_df['event_type'] == 'Fixation'
         fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
@@ -199,11 +199,14 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 
     try:
         if algorithm == 'idt':
-            data = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         elif algorithm == 'ivt':
-            data = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
+        
+        # Use the actual threshold from classification (which may be adapted)
+        best_thresh = actual_thresh
 
         if fixation_merge_threshold is not None:
             data = merge_fixations(data, fixation_merge_threshold=fixation_merge_threshold)
@@ -302,12 +305,14 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         
         # Store the processed data in the instance
         self.event_data_df = final_gaze_data
+        self.best_threshold = best_thresh
         
         # No longer saving processed_events.csv here - handled in main.py with custom naming
         logging.info(f"Event data processing completed")
     else:
         logging.error("Failed to process event data")
         self.event_data_df = None
+        self.best_threshold = None
         return None
     
     return final_gaze_data

@@ -262,6 +262,16 @@ function ResultsDisplay({ results }) {
                         <p className="result-value">{results.success ? 'Complete' : 'Failed'}</p>
                     </div>
                 </div>
+
+                <div className="result-card">
+                    <div className="result-icon">🎯</div>
+                    <div className="result-info">
+                        <p className="result-label">Threshold Used</p>
+                        <p className="result-value">
+                            {results.result?.best_threshold ? results.result.best_threshold.toFixed(2) : 'N/A'}
+                        </p>
+                    </div>
+                </div>
             </div>
 
             {results.message && (
