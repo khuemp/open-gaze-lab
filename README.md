@@ -2,6 +2,8 @@
 
 A web application for uploading eye-tracking gaze data and detecting fixations with customizable parameters.
 
+**New Feature**: ⏱️ Time-scrolling visualization! See how fixations and gaze points appear progressively over time with interactive play/pause controls and a time slider. [Learn more](TIME_SCROLLING_GUIDE.md)
+
 Not support python versions above 3.11 yet.
 
 ## Project Structure

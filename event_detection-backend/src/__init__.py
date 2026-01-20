@@ -2,7 +2,7 @@
 from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
-from .visualization import plot_gaze_points_and_fixations
+from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling
 
 class EventDetection:
     """
@@ -53,6 +53,8 @@ class EyeTrackingVisualizer:
     Methods:
         plot_gaze_points_and_fixations(gaze_data, bg_image_path=None, aois=None, show_attach=True, attach_type='bbox'):
             Visualizes gaze points and fixations from eye-tracking data using Plotly.
+        plot_gaze_with_time_scrolling(output_dir, bg_image_path=None, aois=None, time_window_ms=5000, step_ms=100):
+            Creates an interactive time-scrollable visualization of gaze data and fixations.
     """
 
     def __init__(self, loaded_event_df):
@@ -64,7 +66,8 @@ class EyeTrackingVisualizer:
         # Create independent copy of event data to prevent modifications
         self.event_data_df = loaded_event_df.copy()
 
-        # Attach visualization function as instance method
+        # Attach visualization functions as instance methods
         self.plot_gaze_points_and_fixations = plot_gaze_points_and_fixations.__get__(self)
+        self.plot_gaze_with_time_scrolling = plot_gaze_with_time_scrolling.__get__(self)
 
 __all__ = ["EventDetection", "EyeTrackingVisualizer"]

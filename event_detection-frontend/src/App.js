@@ -295,7 +295,15 @@ function ResultsDisplay({ results }) {
                         className="view-button"
                         onClick={() => window.open(`http://127.0.0.1:5000/api/plot/${results.filename}`, '_blank')}
                     >
-                        📊 View Plot
+                        📊 View Static Plot
+                    </button>
+                )}
+                {results.result?.time_plot_file && (
+                    <button
+                        className="view-button"
+                        onClick={() => window.open(`http://127.0.0.1:5000/api/plot-time/${results.filename}`, '_blank')}
+                    >
+                        ⏱️ View Time-Scrolling Plot
                     </button>
                 )}
             </div>

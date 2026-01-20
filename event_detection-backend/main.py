@@ -177,7 +177,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     events_output_file = EVENTS_FOLDER / f"{output_name}_events.csv"
     detector.event_data_df.to_csv(events_output_file, index=False)
     
-    # Create visualization using EyeTrackingVisualizer class
+    # Create standard visualization using EyeTrackingVisualizer class
     plot_file = VISUALIZATION_FOLDER / f"{output_name}_visualization.html"
     visualizer = EyeTrackingVisualizer(detector.event_data_df)
     visualizer.plot_gaze_points_and_fixations(
@@ -187,9 +187,20 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         show_attach=False
     )
     
+    # Create time-scrolling visualization
+    time_plot_file = VISUALIZATION_FOLDER / f"{output_name}_time_visualization.html"
+    visualizer.plot_gaze_with_time_scrolling(
+        str(time_plot_file),
+        bg_image_path=None,
+        aois=None,
+        time_window_ms=5000,
+        step_ms=100
+    )
+    
     return {
         'events_file': str(events_output_file.relative_to(BASE_DIR)),
         'plot_file': str(plot_file.relative_to(BASE_DIR)) if plot_file else None,
+        'time_plot_file': str(time_plot_file.relative_to(BASE_DIR)) if time_plot_file else None,
         'num_events': len(detector.event_data_df),
         'num_fixations': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Fixation']),
         'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade']),
@@ -217,6 +228,19 @@ async def get_plot(filename: str):
     plot_file = VISUALIZATION_FOLDER / f"{filename}_visualization.html"
     if not plot_file.exists():
         raise HTTPException(status_code=404, detail="Plot not found")
+    
+    with open(plot_file, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/api/plot-time/{filename}")
+async def get_time_plot(filename: str):
+    """Get the time-scrolling HTML plot content."""
+    plot_file = VISUALIZATION_FOLDER / f"{filename}_time_visualization.html"
+    if not plot_file.exists():
+        raise HTTPException(status_code=404, detail="Time plot not found")
     
     with open(plot_file, 'r', encoding='utf-8') as f:
         html_content = f.read()
