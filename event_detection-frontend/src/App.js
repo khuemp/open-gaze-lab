@@ -228,7 +228,7 @@ function ResultsDisplay({ results }) {
                 <div className="result-card">
                     <div className="result-icon">👁️</div>
                     <div className="result-info">
-                        <p className="result-label">Gaze Point as Fixation</p>
+                        <p className="result-label">Gaze Points As Fixation</p>
                         <p className="result-value">
                             {results.result?.num_fixations || 0}
                         </p>
@@ -238,7 +238,7 @@ function ResultsDisplay({ results }) {
                 <div className="result-card">
                     <div className="result-icon">⚡</div>
                     <div className="result-info">
-                        <p className="result-label">Gaze Point as Saccades</p>
+                        <p className="result-label">Gaze Points As Saccade</p>
                         <p className="result-value">
                             {results.result?.num_saccades || 0}
                         </p>
