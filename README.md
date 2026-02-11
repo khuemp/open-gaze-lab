@@ -41,7 +41,7 @@ pip install -r requirements.txt
 
 2. Start the FastAPI server:
 ```bash
-python app.py
+python main.py
 ```
 
 The backend will run on `http://127.0.0.1:5000`
@@ -58,7 +58,7 @@ npm install
 
 2. Start the development server:
 ```bash
-npm start
+npm run start
 ```
 
 The frontend will open at `http://localhost:8000`
