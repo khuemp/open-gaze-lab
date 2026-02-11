@@ -74,83 +74,84 @@ function App() {
 
                 <div className="panel">
                     <h2>⚙️ Detection Parameters</h2>
+                    <div className="params-grid">
+                        <div className="control-group">
+                            <label htmlFor="resolution">Display Resolution (WxH)</label>
+                            <input
+                                id="resolution"
+                                type="text"
+                                value={resolution}
+                                onChange={(e) => setResolution(e.target.value)}
+                                placeholder="2560,1440"
+                                className="input-field"
+                            />
+                        </div>
 
-                    <div className="control-group">
-                        <label htmlFor="resolution">Display Resolution (WxH)</label>
-                        <input
-                            id="resolution"
-                            type="text"
-                            value={resolution}
-                            onChange={(e) => setResolution(e.target.value)}
-                            placeholder="2560,1440"
-                            className="input-field"
-                        />
+                        <div className="control-group">
+                            <label htmlFor="min-fixation">Min Fixation Duration (ms)</label>
+                            <input
+                                id="min-fixation"
+                                type="number"
+                                value={minFixationDuration}
+                                onChange={(e) => setMinFixationDuration(parseInt(e.target.value))}
+                                className="input-field"
+                            />
+                        </div>
+
+                        <div className="control-group">
+                            <label htmlFor="detect-threshold">Detection Threshold</label>
+                            <input
+                                id="detect-threshold"
+                                type="number"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={detectThreshold}
+                                onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
+                                className="input-field"
+                            />
+                        </div>
+
+                        <div className="control-group">
+                            <label htmlFor="algorithm">Algorithm</label>
+                            <select
+                                id="algorithm"
+                                value={algorithm}
+                                onChange={(e) => setAlgorithm(e.target.value)}
+                                className="input-field"
+                            >
+                                <option value="idt">IDT</option>
+                                <option value="ivt">IVT</option>
+                            </select>
+                        </div>
+
+                        <div className="control-group">
+                            <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
+                            <input
+                                id="sampling-rate"
+                                type="number"
+                                value={samplingRate}
+                                onChange={(e) => setSamplingRate(parseInt(e.target.value))}
+                                className="input-field"
+                            />
+                        </div>
+
+                        <div className="control-group">
+                            <label htmlFor="fixation-merge">Merge Threshold (px)</label>
+                            <input
+                                id="fixation-merge"
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={fixationMergeThreshold || ''}
+                                onChange={(e) => setFixationMergeThreshold(e.target.value ? parseFloat(e.target.value) : null)}
+                                placeholder="None"
+                                className="input-field"
+                            />
+                        </div>
                     </div>
 
-                    <div className="control-group">
-                        <label htmlFor="min-fixation">Min Fixation Duration (ms)</label>
-                        <input
-                            id="min-fixation"
-                            type="number"
-                            value={minFixationDuration}
-                            onChange={(e) => setMinFixationDuration(parseInt(e.target.value))}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div className="control-group">
-                        <label htmlFor="detect-threshold">Detection Threshold</label>
-                        <input
-                            id="detect-threshold"
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={detectThreshold}
-                            onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div className="control-group">
-                        <label htmlFor="algorithm">Algorithm</label>
-                        <select
-                            id="algorithm"
-                            value={algorithm}
-                            onChange={(e) => setAlgorithm(e.target.value)}
-                            className="input-field"
-                        >
-                            <option value="idt">IDT (Identification by Two-Thresholds)</option>
-                            <option value="ivt">IVT (Identification by Velocity Threshold)</option>
-                        </select>
-                    </div>
-
-                    <div className="control-group">
-                        <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
-                        <input
-                            id="sampling-rate"
-                            type="number"
-                            value={samplingRate}
-                            onChange={(e) => setSamplingRate(parseInt(e.target.value))}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div className="control-group">
-                        <label htmlFor="fixation-merge">Fixation Merge Threshold (px, optional)</label>
-                        <input
-                            id="fixation-merge"
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={fixationMergeThreshold || ''}
-                            onChange={(e) => setFixationMergeThreshold(e.target.value ? parseFloat(e.target.value) : null)}
-                            placeholder="None"
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div className="control-group">
+                    <div className="control-group" style={{ marginBottom: 0 }}>
                         <label htmlFor="adapt">
                             <input
                                 id="adapt"
@@ -162,15 +163,15 @@ function App() {
                             Enable Adaptive Threshold
                         </label>
                     </div>
-                </div>
 
-                <button
-                    className="process-button"
-                    onClick={handleProcess}
-                    disabled={loading || !file}
-                >
-                    {loading ? 'Processing...' : 'Process Gaze Data'}
-                </button>
+                    <button
+                        className="process-button"
+                        onClick={handleProcess}
+                        disabled={loading || !file}
+                    >
+                        {loading ? 'Processing...' : 'Process Gaze Data'}
+                    </button>
+                </div>
 
                 {error && <div className="error-message">{error}</div>}
 
