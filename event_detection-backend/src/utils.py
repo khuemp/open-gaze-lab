@@ -108,11 +108,12 @@ def clean_fixations(events_df):
 
     Args:
         events_df (pd.DataFrame): Event data with columns:
-            - event_type (str): 'Fixation' or 'Saccade'
+            - event_type (str): 'Fixation', 'Saccade', or 'Blink'
             - timestamp (float): Time in milliseconds
             - fixation_x (float): X coordinate of fixation center
             - fixation_y (float): Y coordinate of fixation center
             - fixation_id (int): Unique fixation identifier
+            - blink_id (int): Unique blink identifier (optional)
 
     Returns:
         pd.DataFrame: Cleaned data with added/corrected columns:
@@ -156,6 +157,21 @@ def clean_fixations(events_df):
         events_df.loc[sac_mask, 'start_time'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['start_time'])
         events_df.loc[sac_mask, 'end_time'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['end_time'])
         events_df.loc[sac_mask, 'event_duration'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['event_duration'])
+
+    # Calculate and map blink bounds
+    if 'blink_id' in events_df.columns:
+        blink_mask = events_df['blink_id'].notna()
+        if blink_mask.any():
+            blink_bounds = (
+                events_df[blink_mask]
+                .groupby('blink_id', dropna=False)['timestamp']
+                .agg(start_time='min', end_time='max')
+            )
+            blink_bounds['event_duration'] = blink_bounds['end_time'] - blink_bounds['start_time']
+
+            events_df.loc[blink_mask, 'start_time'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['start_time'])
+            events_df.loc[blink_mask, 'end_time'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['end_time'])
+            events_df.loc[blink_mask, 'event_duration'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['event_duration'])
     
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
     return events_df

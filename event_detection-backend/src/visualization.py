@@ -41,7 +41,8 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     # Define visual style for event types
     color_map = {'Fixation': 'rgba(0, 128, 0, 0.5)',    # Green for fixations
-                 'Saccade': 'rgba(128, 0, 0, 0.5)'}     # Red for saccades
+                 'Saccade': 'rgba(128, 0, 0, 0.5)',     # Red for saccades
+                 'Blink': 'rgba(0, 0, 128, 0.5)'}       # Blue for blinks
     colors = [color_map[event] for event in gaze_data['event_type']]
 
     # Create scatter plot of gaze points colored by event type (fixation/saccade)
@@ -216,7 +217,8 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     
     # Define visual style for event types
     color_map = {'Fixation': 'rgba(0, 128, 0, 0.5)',    # Green for fixations
-                 'Saccade': 'rgba(128, 0, 0, 0.5)'}     # Red for saccades
+                 'Saccade': 'rgba(128, 0, 0, 0.5)',     # Red for saccades
+                 'Blink': 'rgba(0, 0, 128, 0.5)'}       # Blue for blinks
     
     # Get time range
     min_time = gaze_data['timestamp'].min()
