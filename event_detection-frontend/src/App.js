@@ -122,6 +122,16 @@ function App() {
             <main className="main-content">
                 <div className="panel">
                     <FileUpload onFileSelect={handleFileSelect} fileName={file?.name} />
+                    {results?.result?.events_file && (
+                        <a
+                            href={`http://127.0.0.1:5000/api/results/${results.filename}`}
+                            className="download-button"
+                            download
+                            style={{ marginTop: '0.75rem', display: 'inline-block' }}
+                        >
+                            Download Events CSV
+                        </a>
+                    )}
                 </div>
 
                 <div className="panel">
@@ -227,8 +237,38 @@ function App() {
 }
 
 function FileUpload({ onFileSelect, fileName }) {
+    const [isDragging, setIsDragging] = React.useState(false);
+
     const handleFileChange = (event) => {
         const files = event.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                onFileSelect(file);
+            } else {
+                alert('Please select a CSV file');
+            }
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             const file = files[0];
             if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
@@ -242,7 +282,12 @@ function FileUpload({ onFileSelect, fileName }) {
     return (
         <div className="file-upload">
             <h2>Upload Gaze Data</h2>
-            <div className="upload-area">
+            <div
+                className={`upload-area ${isDragging ? 'dragging' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
                 <input
                     type="file"
                     accept=".csv"
@@ -297,6 +342,13 @@ function ResultsDisplay({ results }) {
                 </div>
 
                 <div className="result-card">
+                    <p className="result-label">Gaze Points As Blink</p>
+                    <p className="result-value">
+                        {results.result?.num_blinks || 0}
+                    </p>
+                </div>
+
+                <div className="result-card">
                     <p className="result-label">Fixation Points</p>
                     <p className="result-value">
                         {results.result?.num_fixation_points || 0}
@@ -317,33 +369,27 @@ function ResultsDisplay({ results }) {
                 </div>
             )}
 
-            <div className="results-actions">
-                {results.result?.events_file && (
-                    <a
-                        href={`http://127.0.0.1:5000/api/results/${results.filename}`}
-                        className="download-button"
-                        download
-                    >
-                        Download Events CSV
-                    </a>
-                )}
-                {results.result?.plot_file && (
-                    <button
-                        className="view-button"
-                        onClick={() => window.open(`http://127.0.0.1:5000/api/plot/${results.filename}`, '_blank')}
-                    >
-                        View Static Plot
-                    </button>
-                )}
-                {results.result?.time_plot_file && (
-                    <button
-                        className="view-button"
-                        onClick={() => window.open(`http://127.0.0.1:5000/api/plot-time/${results.filename}`, '_blank')}
-                    >
-                        View Time-Scrolling Plot
-                    </button>
-                )}
-            </div>
+            {results.result?.plot_file && (
+                <div className="plot-container">
+                    <h3>Static Visualization</h3>
+                    <iframe
+                        src={`http://127.0.0.1:5000/api/plot/${results.filename}`}
+                        title="Static Plot"
+                        className="plot-iframe"
+                    />
+                </div>
+            )}
+
+            {results.result?.time_plot_file && (
+                <div className="plot-container">
+                    <h3>Time-Scrolling Visualization</h3>
+                    <iframe
+                        src={`http://127.0.0.1:5000/api/plot-time/${results.filename}`}
+                        title="Time-Scrolling Plot"
+                        className="plot-iframe"
+                    />
+                </div>
+            )}
         </div>
     );
 }

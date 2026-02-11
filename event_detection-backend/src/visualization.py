@@ -255,9 +255,11 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         
         colors = [color_map.get(e, color_map['Saccade']) for e in visible['event_type']]
         
+        # Use original index as ids to maintain point identity across frames
         gaze_scatter = go.Scatter(
-            x=visible['x'],
-            y=visible['y'],
+            x=visible['x'].tolist(),
+            y=visible['y'].tolist(),
+            ids=visible.index.astype(str).tolist(),
             mode='markers',
             marker=dict(color=colors, size=6, opacity=0.7),
             name='Gaze Points',
@@ -266,11 +268,12 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         
         fixations = visible[['fixation_x', 'fixation_y', 'fixation_id']].drop_duplicates(subset=['fixation_id'])
         fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
-        fixations = fixations.sort_values('fixation_id').reset_index(drop=True)
+        fixations = fixations.sort_values('fixation_id')
         
         fixation_scatter = go.Scatter(
-            x=fixations['fixation_x'],
-            y=fixations['fixation_y'],
+            x=fixations['fixation_x'].tolist(),
+            y=fixations['fixation_y'].tolist(),
+            ids=fixations['fixation_id'].astype(str).tolist(),
             mode='markers+text',
             marker=dict(color='#1a1a1a', size=12, line=dict(color='white', width=2)),
             text=[str(int(fid)) for fid in fixations['fixation_id']],
@@ -281,8 +284,8 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         )
         
         fixation_line = go.Scatter(
-            x=fixations['fixation_x'],
-            y=fixations['fixation_y'],
+            x=fixations['fixation_x'].tolist(),
+            y=fixations['fixation_y'].tolist(),
             mode='lines',
             line=dict(color='rgba(26, 26, 26, 0.5)', width=1.5),
             name='Scanpath',
@@ -345,21 +348,25 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         margin=dict(l=60, r=40, t=80, b=100),
         updatemenus=[{
             'type': 'buttons',
-            'showactive': True,
+            'showactive': False,
             'bgcolor': '#f0f0f0',
             'bordercolor': '#ccc',
             'font': dict(size=11, color='#333'),
             'buttons': [
                 {
-                    'label': 'Play/Pause',
+                    'label': 'Play',
                     'method': 'animate',
                     'args': [None, {
-                        'frame': {'duration': 100, 'redraw': True},
+                        'frame': {'duration': 300, 'redraw': True},
                         'fromcurrent': True,
                         'mode': 'immediate',
                         'transition': {'duration': 0}
-                    }],
-                    'args2': [[None], {
+                    }]
+                },
+                {
+                    'label': 'Pause',
+                    'method': 'animate',
+                    'args': [[None], {
                         'frame': {'duration': 0, 'redraw': False},
                         'mode': 'immediate',
                         'transition': {'duration': 0}
