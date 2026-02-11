@@ -228,7 +228,7 @@ function ResultsDisplay({ results }) {
                 <div className="result-card">
                     <div className="result-icon">👁️</div>
                     <div className="result-info">
-                        <p className="result-label">Fixations Detected</p>
+                        <p className="result-label">Gaze Point as Fixation</p>
                         <p className="result-value">
                             {results.result?.num_fixations || 0}
                         </p>
@@ -238,9 +238,19 @@ function ResultsDisplay({ results }) {
                 <div className="result-card">
                     <div className="result-icon">⚡</div>
                     <div className="result-info">
-                        <p className="result-label">Saccades</p>
+                        <p className="result-label">Gaze Point as Saccades</p>
                         <p className="result-value">
                             {results.result?.num_saccades || 0}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="result-card">
+                    <div className="result-icon">📍</div>
+                    <div className="result-info">
+                        <p className="result-label">Fixation Points</p>
+                        <p className="result-value">
+                            {results.result?.num_fixation_points || 0}
                         </p>
                     </div>
                 </div>

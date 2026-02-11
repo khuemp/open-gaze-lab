@@ -67,7 +67,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         mode='markers+text',
         marker=dict(color='white', size=10, 
                    line=dict(color='black', width=2)),      # High-contrast markers
-        text=[str(index) for index in fixations.index],     # Chronological numbering
+        text=[str(index + 1) for index in fixations.index], # Chronological numbering (1-based)
         textposition='top center',                          # Label position
         name='Fixation Points'
     )
