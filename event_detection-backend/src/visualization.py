@@ -39,137 +39,158 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     gaze_data = self.event_data_df.copy()
 
-    # Define visual style for event types
-    color_map = {'Fixation': 'rgba(0, 128, 0, 0.5)',    # Green for fixations
-                 'Saccade': 'rgba(128, 0, 0, 0.5)',     # Red for saccades
-                 'Blink': 'rgba(0, 0, 128, 0.5)'}       # Blue for blinks
-    colors = [color_map[event] for event in gaze_data['event_type']]
+    # Color palette
+    color_map = {
+        'Fixation': 'rgba(34, 139, 34, 0.6)',
+        'Saccade': 'rgba(100, 100, 100, 0.4)',
+        'Blink': 'rgba(120, 120, 120, 0.4)'
+    }
+    colors = [color_map.get(e, color_map['Saccade']) for e in gaze_data['event_type']]
 
-    # Create scatter plot of gaze points colored by event type (fixation/saccade)
+    # Gaze points scatter
     gaze_scatter = go.Scatter(
         x=gaze_data['x'],
         y=gaze_data['y'],
         mode='markers',
-        marker=dict(color=colors),     # Colors defined by event type
+        marker=dict(color=colors, size=6, opacity=0.7),
         name='Gaze Points'
     )
 
-    # Filter and prepare fixation center data
+    # Fixation centers
     fixations = gaze_data[['fixation_x', 'fixation_y']].drop_duplicates()
-    fixations = fixations[fixations['fixation_x'].notna() & 
-                         fixations['fixation_y'].notna()]    # Exclude invalid coordinates
-    fixations.reset_index(drop=True, inplace=True)          # Reset index for sequential labeling
+    fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
+    fixations = fixations.reset_index(drop=True)
 
-    # Create visualization of fixation centers with numbered labels
     fixation_scatter = go.Scatter(
         x=fixations['fixation_x'],
         y=fixations['fixation_y'],
         mode='markers+text',
-        marker=dict(color='white', size=10, 
-                   line=dict(color='black', width=2)),      # High-contrast markers
-        text=[str(index + 1) for index in fixations.index], # Chronological numbering (1-based)
-        textposition='top center',                          # Label position
+        marker=dict(color='#1a1a1a', size=12, line=dict(color='white', width=2)),
+        text=[str(i + 1) for i in fixations.index],
+        textposition='top center',
+        textfont=dict(size=10, color='#1a1a1a', family='Arial'),
         name='Fixation Points'
     )
 
-    # Draw scanpath connecting fixations in temporal order
+    # Scanpath
     fixation_line = go.Scatter(
         x=fixations['fixation_x'],
         y=fixations['fixation_y'],
         mode='lines',
-        line=dict(color='black', width=2),
-        name='Fixation Path'
+        line=dict(color='rgba(26, 26, 26, 0.5)', width=1.5),
+        name='Scanpath'
     )
 
-    # Configure plot appearance and axes
+    # Layout
     layout = go.Layout(
-        title='Gaze and Fixation Visualization',
-        xaxis=dict(title='X', range=[0, 2560]),        # Full HD width
-        yaxis=dict(title='Y', range=[1440, 0],         # Inverted Y-axis for screen coordinates
-                  autorange=False),
-        showlegend=True
+        title=dict(
+            text='Gaze and Fixation Visualization',
+            font=dict(size=16, color='#1a1a1a', family='Arial, sans-serif'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
+            range=[0, 2560],
+            showgrid=True,
+            gridcolor='rgba(200, 200, 200, 0.3)',
+            zeroline=False,
+            showline=True,
+            linecolor='#ddd',
+            tickfont=dict(size=10, color='#666'),
+            scaleanchor='y',
+            scaleratio=1
+        ),
+        yaxis=dict(
+            title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
+            range=[1440, 0],
+            autorange=False,
+            showgrid=True,
+            gridcolor='rgba(200, 200, 200, 0.3)',
+            zeroline=False,
+            showline=True,
+            linecolor='#ddd',
+            tickfont=dict(size=10, color='#666')
+        ),
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            font=dict(size=10, color='#333'),
+            bgcolor='rgba(255, 255, 255, 0.9)',
+            bordercolor='#ddd',
+            borderwidth=1
+        ),
+        plot_bgcolor='#fafafa',
+        paper_bgcolor='white',
+        margin=dict(l=60, r=40, t=80, b=60)
     )
 
     # Combine visualization layers
     data = [gaze_scatter, fixation_scatter, fixation_line]
     fig = go.Figure(data=data, layout=layout)
 
-    # Add optional background stimulus image
     if bg_image_path is not None:
-        # Load background image data
-        image = open(bg_image_path, 'rb').read()
-
-        # Add background image as base layer with controlled opacity
-        fig.add_layout_image(
-            dict(
+        try:
+            with open(bg_image_path, 'rb') as f:
+                image = f.read()
+            fig.add_layout_image(dict(
                 source=image,
-                xref="x", yref="y",           # Align with plot coordinates
-                x=0, y=0,                     # Position at origin
-                sizex=2560, sizey=1440,       # Match screen dimensions
-                sizing="stretch",             # Scale to fit
-                opacity=0.5,                  # Semi-transparent for overlay
-                layer="below")                # Place behind other elements
-        )
+                xref="x", yref="y",
+                x=0, y=0,
+                sizex=2560, sizey=1440,
+                sizing="stretch",
+                opacity=0.35,
+                layer="below"
+            ))
+        except Exception as e:
+            print(f"Warning: Could not load background image: {e}")
 
     if aois is not None:
-        # Visualize Areas of Interest (AOIs) as semi-transparent rectangles
         for index, aoi in aois.iterrows():
-            # Create AOI bounding box
             fig.add_shape(
-                type="rect",                               # Rectangle shape for AOI boundary
-                xref="x", yref="y",                       # Reference to plot coordinates
-                x0=aoi['pos_x'],                          # Left edge
-                y0=aoi['pos_y'],                          # Top edge
-                x1=aoi['pos_x'] + aoi['width'],           # Right edge
-                y1=aoi['pos_y'] + aoi['height'],          # Bottom edge
-                line=dict(
-                    color="RoyalBlue",                    # Blue border
-                    width=3,                              # Prominent border width
-                ),
-                fillcolor="LightSkyBlue",                 # Light fill color
-                opacity=0.5,                              # Semi-transparent fill
-                layer="below"                             # Draw under gaze data
+                type="rect",
+                xref="x", yref="y",
+                x0=aoi['pos_x'],
+                y0=aoi['pos_y'],
+                x1=aoi['pos_x'] + aoi['width'],
+                y1=aoi['pos_y'] + aoi['height'],
+                line=dict(color='#5a7a8a', width=2),
+                fillcolor='rgba(90, 122, 138, 0.12)',
+                layer="below"
             )
-
-            # Add centered AOI identification labels
             fig.add_annotation(
-                x=aoi['pos_x'] + aoi['width'] / 2,        # Horizontal center
-                y=aoi['pos_y'] + aoi['height'] / 2,       # Vertical center
-                text=f"{aoi['aoi']}",                     # AOI identifier
-                showarrow=False,                          # No pointer arrow
-                font=dict(
-                    color="RoyalBlue",                    # Match border color
-                    size=12                               # Readable text size
-                )
+                x=aoi['pos_x'] + aoi['width'] / 2,
+                y=aoi['pos_y'] + aoi['height'] / 2,
+                text=aoi['aoi'],
+                showarrow=False,
+                font=dict(color='#5a7a8a', size=11, family='Arial')
             )
 
-    # Visualize fixation-to-AOI attachments when enabled
     if show_attach and 'aoi' in gaze_data.columns and aois is not None:
-        # Extract fixations that have been assigned to AOIs
         fixations = gaze_data[gaze_data['aoi_type'].notna()][
             ['fixation_x', 'fixation_y', 'aoi_type', 'aoi', 'aoi_id']].drop_duplicates()
         fixations.reset_index(drop=True, inplace=True)
 
-        # Draw connection lines between fixations and their assigned AOIs
         for idx, fixation in fixations.iterrows():
-            # Only process word-type AOIs for attachment visualization
             if fixation['aoi_type'] == 'word':
-                # Get the corresponding AOI and calculate its center point
                 aoi = aois.iloc[int(fixation['aoi_id'])]
-                aoi_center_x = aoi['pos_x'] + aoi['width'] / 2    # Horizontal center
-                aoi_center_y = aoi['pos_y'] + aoi['height'] / 2   # Vertical center
+                aoi_center_x = aoi['pos_x'] + aoi['width'] / 2
+                aoi_center_y = aoi['pos_y'] + aoi['height'] / 2
             else:
                 continue
 
-            # Create visual connection between fixation and AOI center
-            line = go.Scatter(
-                x=[fixation['fixation_x'], aoi_center_x],     # Line endpoints X
-                y=[fixation['fixation_y'], aoi_center_y],     # Line endpoints Y
+            fig.add_trace(go.Scatter(
+                x=[fixation['fixation_x'], aoi_center_x],
+                y=[fixation['fixation_y'], aoi_center_y],
                 mode='lines',
-                line=dict(color='red', width=2),              # Red connection line
-                name=f'Fixation {idx} to AOI Centroid'        # Identify connection
-            )
-            fig.add_trace(line)
+                line=dict(color='rgba(160, 90, 90, 0.5)', width=1.5, dash='dot'),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
 
     # Save the figure to an HTML file
     pyo.plot(fig, filename=output_dir, auto_open=False)
@@ -215,128 +236,150 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     # Sort by timestamp to ensure correct temporal sequence
     gaze_data = gaze_data.sort_values('timestamp').reset_index(drop=True)
     
-    # Define visual style for event types
-    color_map = {'Fixation': 'rgba(0, 128, 0, 0.5)',    # Green for fixations
-                 'Saccade': 'rgba(128, 0, 0, 0.5)',     # Red for saccades
-                 'Blink': 'rgba(0, 0, 128, 0.5)'}       # Blue for blinks
+    # Professional minimalist color palette
+    color_map = {'Fixation': 'rgba(34, 139, 34, 0.6)',    # Forest green for fixations
+                 'Saccade': 'rgba(70, 70, 70, 0.4)',       # Dark gray for saccades
+                 'Blink': 'rgba(100, 100, 100, 0.4)'}      # Medium gray for blinks
     
     # Get time range
     min_time = gaze_data['timestamp'].min()
     max_time = gaze_data['timestamp'].max()
-    
-    # Create time steps for animation frames
     time_steps = list(range(int(min_time), int(max_time) + int(step_ms), int(step_ms)))
     
-    # Create frames for animation
+    # Build animation frames
     frames = []
-    for current_time in time_steps:
-        # Filter data up to current time
-        mask = gaze_data['timestamp'] <= current_time
-        visible_data = gaze_data[mask].copy()
-        
-        if len(visible_data) == 0:
+    for t in time_steps:
+        visible = gaze_data[gaze_data['timestamp'] <= t]
+        if len(visible) == 0:
             continue
         
-        # Create colors for visible gaze points
-        colors = [color_map[event] for event in visible_data['event_type']]
+        colors = [color_map.get(e, color_map['Saccade']) for e in visible['event_type']]
         
-        # Gaze scatter for this frame
         gaze_scatter = go.Scatter(
-            x=visible_data['x'],
-            y=visible_data['y'],
+            x=visible['x'],
+            y=visible['y'],
             mode='markers',
-            marker=dict(color=colors, size=5),
+            marker=dict(color=colors, size=6, opacity=0.7),
             name='Gaze Points',
             showlegend=True
         )
         
-        # Get fixations up to current time
-        fixations = visible_data[['fixation_x', 'fixation_y', 'fixation_id']].drop_duplicates(subset=['fixation_id'])
-        fixations = fixations[fixations['fixation_x'].notna() & 
-                             fixations['fixation_y'].notna()]
+        fixations = visible[['fixation_x', 'fixation_y', 'fixation_id']].drop_duplicates(subset=['fixation_id'])
+        fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
         fixations = fixations.sort_values('fixation_id').reset_index(drop=True)
         
-        # Fixation centers with labels
         fixation_scatter = go.Scatter(
             x=fixations['fixation_x'],
             y=fixations['fixation_y'],
             mode='markers+text',
-            marker=dict(color='white', size=10, 
-                       line=dict(color='black', width=2)),
+            marker=dict(color='#1a1a1a', size=12, line=dict(color='white', width=2)),
             text=[str(int(fid)) for fid in fixations['fixation_id']],
             textposition='top center',
+            textfont=dict(size=10, color='#1a1a1a', family='Arial'),
             name='Fixation Points',
             showlegend=True
         )
         
-        # Scanpath connecting fixations
         fixation_line = go.Scatter(
             x=fixations['fixation_x'],
             y=fixations['fixation_y'],
             mode='lines',
-            line=dict(color='black', width=2),
-            name='Fixation Path',
+            line=dict(color='rgba(26, 26, 26, 0.5)', width=1.5),
+            name='Scanpath',
             showlegend=True
         )
         
-        frame_data = [gaze_scatter, fixation_scatter, fixation_line]
-        
         frames.append(go.Frame(
-            data=frame_data,
-            name=str(current_time),
-            layout=go.Layout(
-                title=f'Gaze and Fixation Visualization (Time: {current_time:.0f} ms)'
-            )
+            data=[gaze_scatter, fixation_scatter, fixation_line],
+            name=str(t)
         ))
     
-    # Create initial frame (empty or first frame)
-    if len(frames) > 0:
-        initial_data = frames[0].data
-        initial_title = f'Gaze and Fixation Visualization (Time: {time_steps[0]:.0f} ms)'
-    else:
-        initial_data = []
-        initial_title = 'Gaze and Fixation Visualization'
+    # Initial frame
+    initial_data = frames[0].data if frames else []
     
-    # Configure plot layout with animation controls
+    # Layout
     layout = go.Layout(
-        title=initial_title,
-        xaxis=dict(title='X', range=[0, 2560]),
-        yaxis=dict(title='Y', range=[1440, 0], autorange=False),
+        title=dict(
+            text='Gaze and Fixation Time-Scrolling Visualization',
+            font=dict(size=16, color='#1a1a1a', family='Arial, sans-serif'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
+            range=[0, 2560],
+            showgrid=True,
+            gridcolor='rgba(200, 200, 200, 0.3)',
+            zeroline=False,
+            showline=True,
+            linecolor='#ddd',
+            tickfont=dict(size=10, color='#666'),
+            scaleanchor='y',
+            scaleratio=1
+        ),
+        yaxis=dict(
+            title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
+            range=[1440, 0],
+            autorange=False,
+            showgrid=True,
+            gridcolor='rgba(200, 200, 200, 0.3)',
+            zeroline=False,
+            showline=True,
+            linecolor='#ddd',
+            tickfont=dict(size=10, color='#666')
+        ),
         showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            font=dict(size=10, color='#333'),
+            bgcolor='rgba(255, 255, 255, 0.9)',
+            bordercolor='#ddd',
+            borderwidth=1
+        ),
+        plot_bgcolor='#fafafa',
+        paper_bgcolor='white',
+        margin=dict(l=60, r=40, t=80, b=100),
         updatemenus=[{
             'type': 'buttons',
-            'showactive': False,
+            'showactive': True,
+            'bgcolor': '#f0f0f0',
+            'bordercolor': '#ccc',
+            'font': dict(size=11, color='#333'),
             'buttons': [
                 {
-                    'label': 'Play',
+                    'label': 'Play/Pause',
                     'method': 'animate',
                     'args': [None, {
                         'frame': {'duration': 100, 'redraw': True},
                         'fromcurrent': True,
                         'mode': 'immediate',
                         'transition': {'duration': 0}
-                    }]
-                },
-                {
-                    'label': 'Pause',
-                    'method': 'animate',
-                    'args': [[None], {
+                    }],
+                    'args2': [[None], {
                         'frame': {'duration': 0, 'redraw': False},
                         'mode': 'immediate',
                         'transition': {'duration': 0}
                     }]
                 }
             ],
-            'x': 0.1,
-            'y': 0,
+            'x': 0.0,
+            'y': -0.12,
             'xanchor': 'left',
-            'yanchor': 'bottom'
+            'yanchor': 'top'
         }],
         sliders=[{
             'active': 0,
+            'bgcolor': '#e0e0e0',
+            'bordercolor': '#ccc',
+            'tickcolor': '#999',
+            'font': dict(size=9, color='#666'),
             'steps': [
                 {
-                    'label': f'{t:.0f}ms',
+                    'label': '',
                     'method': 'animate',
                     'args': [[str(t)], {
                         'frame': {'duration': 0, 'redraw': True},
@@ -346,47 +389,42 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
                 }
                 for t in time_steps
             ],
-            'x': 0.1,
-            'y': 0,
-            'len': 0.9,
+            'x': 0.12,
+            'y': -0.06,
+            'len': 0.88,
             'xanchor': 'left',
             'yanchor': 'top',
-            'pad': {'b': 10, 't': 50},
+            'pad': {'b': 10, 't': 20},
             'currentvalue': {
                 'visible': True,
                 'prefix': 'Time: ',
                 'suffix': ' ms',
-                'xanchor': 'right'
-            }
+                'xanchor': 'left',
+                'font': dict(size=11, color='#333')
+            },
+            'transition': {'duration': 0}
         }]
     )
     
     # Create figure with frames
     fig = go.Figure(data=initial_data, layout=layout, frames=frames)
     
-    # Add optional background stimulus image
     if bg_image_path is not None:
         try:
-            # Load background image data
-            with open(bg_image_path, 'rb') as img_file:
-                image = img_file.read()
-            
-            # Add background image as base layer
-            fig.add_layout_image(
-                dict(
-                    source=image,
-                    xref="x", yref="y",
-                    x=0, y=0,
-                    sizex=2560, sizey=1440,
-                    sizing="stretch",
-                    opacity=0.5,
-                    layer="below"
-                )
-            )
+            with open(bg_image_path, 'rb') as f:
+                image = f.read()
+            fig.add_layout_image(dict(
+                source=image,
+                xref="x", yref="y",
+                x=0, y=0,
+                sizex=2560, sizey=1440,
+                sizing="stretch",
+                opacity=0.35,
+                layer="below"
+            ))
         except Exception as e:
             print(f"Warning: Could not load background image: {e}")
     
-    # Add AOIs if provided
     if aois is not None:
         for index, aoi in aois.iterrows():
             fig.add_shape(
@@ -396,19 +434,16 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
                 y0=aoi['pos_y'],
                 x1=aoi['pos_x'] + aoi['width'],
                 y1=aoi['pos_y'] + aoi['height'],
-                line=dict(color="RoyalBlue", width=3),
-                fillcolor="LightSkyBlue",
-                opacity=0.5,
+                line=dict(color='#5a7a8a', width=2),
+                fillcolor='rgba(90, 122, 138, 0.12)',
                 layer="below"
             )
-            
             fig.add_annotation(
                 x=aoi['pos_x'] + aoi['width'] / 2,
                 y=aoi['pos_y'] + aoi['height'] / 2,
-                text=f"{aoi['aoi']}",
+                text=aoi['aoi'],
                 showarrow=False,
-                font=dict(color="RoyalBlue", size=12)
+                font=dict(color='#5a7a8a', size=11, family='Arial')
             )
     
-    # Save the figure to an HTML file
     pyo.plot(fig, filename=output_dir, auto_open=False)
