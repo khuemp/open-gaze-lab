@@ -1,13 +1,65 @@
 const { useState } = React;
 
+// NumericInput component that only accepts numbers
+function NumericInput({ id, value, onChange, placeholder, className, allowDecimal = true, allowNegative = false }) {
+    const handleKeyDown = (e) => {
+        // Allow: backspace, delete, tab, escape, enter, arrows
+        const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+        if (allowedKeys.includes(e.key)) return;
+
+        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+        if ((e.ctrlKey || e.metaKey) && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) return;
+
+        // Allow decimal point (only one)
+        if (allowDecimal && e.key === '.' && !value.includes('.')) return;
+
+        // Allow negative sign (only at start)
+        if (allowNegative && e.key === '-' && !value.includes('-') && e.target.selectionStart === 0) return;
+
+        // Allow digits
+        if (/^\d$/.test(e.key)) return;
+
+        // Block everything else
+        e.preventDefault();
+    };
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pastedText = e.clipboardData.getData('text');
+        let pattern = allowDecimal ? /[^\d.]/g : /[^\d]/g;
+        if (allowNegative) pattern = allowDecimal ? /[^\d.-]/g : /[^\d-]/g;
+        const cleanedText = pastedText.replace(pattern, '');
+        const newValue = value.substring(0, e.target.selectionStart) + cleanedText + value.substring(e.target.selectionEnd);
+        onChange(newValue);
+    };
+
+    const handleChange = (e) => {
+        onChange(e.target.value);
+    };
+
+    return (
+        <input
+            id={id}
+            type="text"
+            inputMode="decimal"
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={placeholder}
+            className={className}
+        />
+    );
+}
+
 function App() {
     const [file, setFile] = useState(null);
     const [resolution, setResolution] = useState('2560,1440');
-    const [minFixationDuration, setMinFixationDuration] = useState(100);
-    const [detectThreshold, setDetectThreshold] = useState(125);
+    const [minFixationDuration, setMinFixationDuration] = useState('100');
+    const [detectThreshold, setDetectThreshold] = useState('125');
     const [algorithm, setAlgorithm] = useState('idt');
-    const [samplingRate, setSamplingRate] = useState(250);
-    const [fixationMergeThreshold, setFixationMergeThreshold] = useState(null);
+    const [samplingRate, setSamplingRate] = useState('250');
+    const [fixationMergeThreshold, setFixationMergeThreshold] = useState('');
     const [adapt, setAdapt] = useState(false);
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -32,12 +84,12 @@ function App() {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('resolution', resolution);
-            formData.append('min_fixation_duration', minFixationDuration.toString());
-            formData.append('detect_threshold', detectThreshold.toString());
+            formData.append('min_fixation_duration', minFixationDuration);
+            formData.append('detect_threshold', detectThreshold);
             formData.append('algorithm', algorithm);
-            formData.append('sampling_rate', samplingRate.toString());
-            if (fixationMergeThreshold !== null && fixationMergeThreshold !== undefined) {
-                formData.append('fixation_merge_threshold', fixationMergeThreshold.toString());
+            formData.append('sampling_rate', samplingRate);
+            if (fixationMergeThreshold) {
+                formData.append('fixation_merge_threshold', fixationMergeThreshold);
             }
             formData.append('adapt', adapt.toString());
 
@@ -63,7 +115,7 @@ function App() {
     return (
         <div className="container">
             <header className="header">
-                <h1>🔍 Eye Tracking - Fixation Detection</h1>
+                <h1>Eye Tracking Fixation Detection</h1>
                 <p>Upload gaze data and detect fixations with customizable parameters</p>
             </header>
 
@@ -73,7 +125,7 @@ function App() {
                 </div>
 
                 <div className="panel">
-                    <h2>⚙️ Detection Parameters</h2>
+                    <h2>Detection Parameters</h2>
                     <div className="params-grid">
                         <div className="control-group">
                             <label htmlFor="resolution">Display Resolution (WxH)</label>
@@ -89,25 +141,20 @@ function App() {
 
                         <div className="control-group">
                             <label htmlFor="min-fixation">Min Fixation Duration (ms)</label>
-                            <input
+                            <NumericInput
                                 id="min-fixation"
-                                type="number"
                                 value={minFixationDuration}
-                                onChange={(e) => setMinFixationDuration(parseInt(e.target.value))}
+                                onChange={setMinFixationDuration}
                                 className="input-field"
                             />
                         </div>
 
                         <div className="control-group">
                             <label htmlFor="detect-threshold">Detection Threshold</label>
-                            <input
+                            <NumericInput
                                 id="detect-threshold"
-                                type="number"
-                                min="0"
-                                max="1"
-                                step="0.01"
                                 value={detectThreshold}
-                                onChange={(e) => setDetectThreshold(parseFloat(e.target.value))}
+                                onChange={setDetectThreshold}
                                 className="input-field"
                             />
                         </div>
@@ -127,24 +174,20 @@ function App() {
 
                         <div className="control-group">
                             <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
-                            <input
+                            <NumericInput
                                 id="sampling-rate"
-                                type="number"
                                 value={samplingRate}
-                                onChange={(e) => setSamplingRate(parseInt(e.target.value))}
+                                onChange={setSamplingRate}
                                 className="input-field"
                             />
                         </div>
 
                         <div className="control-group">
                             <label htmlFor="fixation-merge">Merge Threshold (px)</label>
-                            <input
+                            <NumericInput
                                 id="fixation-merge"
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={fixationMergeThreshold || ''}
-                                onChange={(e) => setFixationMergeThreshold(e.target.value ? parseFloat(e.target.value) : null)}
+                                value={fixationMergeThreshold}
+                                onChange={setFixationMergeThreshold}
                                 placeholder="None"
                                 className="input-field"
                             />
@@ -198,7 +241,7 @@ function FileUpload({ onFileSelect, fileName }) {
 
     return (
         <div className="file-upload">
-            <h2>📁 Upload Gaze Data</h2>
+            <h2>Upload Gaze Data</h2>
             <div className="upload-area">
                 <input
                     type="file"
@@ -208,14 +251,20 @@ function FileUpload({ onFileSelect, fileName }) {
                     className="hidden-input"
                 />
                 <label htmlFor="csv-input" className="upload-label">
-                    <div className="upload-icon">📄</div>
+                    <div className="upload-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                    </div>
                     <p className="upload-text">
                         {fileName ? `Selected: ${fileName}` : 'Click to select CSV file'}
                     </p>
                     <p className="upload-hint">or drag and drop</p>
                 </label>
             </div>
-            {fileName && <div className="file-selected">✓ File ready for processing</div>}
+            {fileName && <div className="file-selected">File ready for processing</div>}
         </div>
     );
 }
@@ -223,65 +272,42 @@ function FileUpload({ onFileSelect, fileName }) {
 function ResultsDisplay({ results }) {
     return (
         <div className="results-container">
-            <h2>📊 Detection Results</h2>
+            <h2>Detection Results</h2>
 
             <div className="results-grid">
                 <div className="result-card">
-                    <div className="result-icon">👁️</div>
-                    <div className="result-info">
-                        <p className="result-label">Gaze Points As Fixation</p>
-                        <p className="result-value">
-                            {results.result?.num_fixations || 0}
-                        </p>
-                    </div>
+                    <p className="result-label">Total Events</p>
+                    <p className="result-value">
+                        {results.result?.num_events || 0}
+                    </p>
                 </div>
 
                 <div className="result-card">
-                    <div className="result-icon">⚡</div>
-                    <div className="result-info">
-                        <p className="result-label">Gaze Points As Saccade</p>
-                        <p className="result-value">
-                            {results.result?.num_saccades || 0}
-                        </p>
-                    </div>
+                    <p className="result-label">Gaze Points As Fixation</p>
+                    <p className="result-value">
+                        {results.result?.num_fixations || 0}
+                    </p>
                 </div>
 
                 <div className="result-card">
-                    <div className="result-icon">📍</div>
-                    <div className="result-info">
-                        <p className="result-label">Fixation Points</p>
-                        <p className="result-value">
-                            {results.result?.num_fixation_points || 0}
-                        </p>
-                    </div>
+                    <p className="result-label">Gaze Points As Saccade</p>
+                    <p className="result-value">
+                        {results.result?.num_saccades || 0}
+                    </p>
                 </div>
 
                 <div className="result-card">
-                    <div className="result-icon">📈</div>
-                    <div className="result-info">
-                        <p className="result-label">Total Events</p>
-                        <p className="result-value">
-                            {results.result?.num_events || 0}
-                        </p>
-                    </div>
+                    <p className="result-label">Fixation Points</p>
+                    <p className="result-value">
+                        {results.result?.num_fixation_points || 0}
+                    </p>
                 </div>
 
                 <div className="result-card">
-                    <div className="result-icon">✓</div>
-                    <div className="result-info">
-                        <p className="result-label">Status</p>
-                        <p className="result-value">{results.success ? 'Complete' : 'Failed'}</p>
-                    </div>
-                </div>
-
-                <div className="result-card">
-                    <div className="result-icon">🎯</div>
-                    <div className="result-info">
-                        <p className="result-label">Threshold Used</p>
-                        <p className="result-value">
-                            {results.result?.best_threshold ? results.result.best_threshold.toFixed(2) : 'N/A'}
-                        </p>
-                    </div>
+                    <p className="result-label">Threshold Used</p>
+                    <p className="result-value">
+                        {results.result?.best_threshold ? results.result.best_threshold.toFixed(2) : 'N/A'}
+                    </p>
                 </div>
             </div>
 
@@ -298,7 +324,7 @@ function ResultsDisplay({ results }) {
                         className="download-button"
                         download
                     >
-                        ⬇️ Download Events CSV
+                        Download Events CSV
                     </a>
                 )}
                 {results.result?.plot_file && (
@@ -306,7 +332,7 @@ function ResultsDisplay({ results }) {
                         className="view-button"
                         onClick={() => window.open(`http://127.0.0.1:5000/api/plot/${results.filename}`, '_blank')}
                     >
-                        📊 View Static Plot
+                        View Static Plot
                     </button>
                 )}
                 {results.result?.time_plot_file && (
@@ -314,7 +340,7 @@ function ResultsDisplay({ results }) {
                         className="view-button"
                         onClick={() => window.open(`http://127.0.0.1:5000/api/plot-time/${results.filename}`, '_blank')}
                     >
-                        ⏱️ View Time-Scrolling Plot
+                        View Time-Scrolling Plot
                     </button>
                 )}
             </div>
