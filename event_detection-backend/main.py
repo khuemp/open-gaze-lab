@@ -45,7 +45,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 def detect_delimiter(file_path):
     """Detect the delimiter used in a CSV file."""
-    delimiters = [';', ',', '\t', ' ']
+    delimiters = ['|', ';', ',', '\t', ' ']
     with open(file_path, 'r', encoding='utf-8') as f:
         first_line = f.readline()
     
@@ -53,6 +53,56 @@ def detect_delimiter(file_path):
         if delimiter in first_line:
             return delimiter
     return ','  # Default to comma
+
+
+def detect_column_mapping(df):
+    """Detect which columns contain x, y coordinates and timestamp.
+    
+    Returns a dict with keys 'x', 'y', 'timestamp' mapping to actual column names.
+    """
+    mapping = {}
+    columns_lower = {col.lower(): col for col in df.columns}
+    
+    # Detect timestamp column
+    timestamp_candidates = ['timestamp', 'time', 't']
+    for candidate in timestamp_candidates:
+        if candidate in columns_lower:
+            mapping['timestamp'] = columns_lower[candidate]
+            break
+    
+    # Detect x coordinate column
+    x_candidates = ['x', 'gaze_x', 'gazex', 'pos_x', 'posx']
+    for candidate in x_candidates:
+        if candidate in columns_lower:
+            mapping['x'] = columns_lower[candidate]
+            break
+    
+    # Detect y coordinate column
+    y_candidates = ['y', 'gaze_y', 'gazey', 'pos_y', 'posy']
+    for candidate in y_candidates:
+        if candidate in columns_lower:
+            mapping['y'] = columns_lower[candidate]
+            break
+    
+    return mapping
+
+
+def detect_if_normalized(df, x_col, y_col):
+    """Detect if coordinates are normalized (0-1) or in pixels.
+    
+    Returns True if normalized, False if in pixels.
+    """
+    x_values = df[x_col].dropna()
+    y_values = df[y_col].dropna()
+    
+    if len(x_values) == 0 or len(y_values) == 0:
+        return True  # Default to normalized
+    
+    x_max = x_values.max()
+    y_max = y_values.max()
+    
+    # If max values > 2, assume pixel coordinates
+    return not (x_max > 2 or y_max > 2)
 
 
 @app.get("/api/status")
@@ -159,8 +209,24 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     # Read CSV
     gaze_data = pd.read_csv(file_path, sep=delimiter)
     
-    # Initialize EventDetection with the gaze data
-    detector = EventDetection(gaze_data, resolution=resolution)
+    # Detect column mapping and normalization
+    column_mapping = detect_column_mapping(gaze_data)
+    
+    # Validate required columns exist
+    if 'x' not in column_mapping or 'y' not in column_mapping:
+        raise ValueError(f"Could not detect x/y coordinate columns. Found columns: {list(gaze_data.columns)}")
+    if 'timestamp' not in column_mapping:
+        raise ValueError(f"Could not detect timestamp column. Found columns: {list(gaze_data.columns)}")
+    
+    is_normalized = detect_if_normalized(gaze_data, column_mapping['x'], column_mapping['y'])
+    
+    # Initialize EventDetection with the gaze data and column mapping
+    detector = EventDetection(
+        gaze_data, 
+        resolution=resolution, 
+        column_mapping=column_mapping,
+        is_normalized=is_normalized
+    )
     
     # Process events using the class method
     detector.process_event(

@@ -54,60 +54,64 @@ class AOI:
         width, height = image.size
         
         # Run EasyOCR
-        results = self.reader.readtext(image_path)
-        
+        results = self.reader.readtext(
+            image_path,
+            paragraph=False,   # Prevent paragraph grouping
+            detail=1
+        )
+
         words = []
         bboxes = []
         confidences = []
         
-        # Process each detection
-        for detection in results:
-            # detection format: (bbox, text, confidence)
-            # bbox is a list of 4 corner points: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
-            bbox_points = detection[0]
-            text = detection[1]
-            confidence = detection[2]
+        # Process each detected text block and split into individual words
+        for bbox_points, text, confidence in results:
+            xs = [p[0] for p in bbox_points]
+            ys = [p[1] for p in bbox_points]
             
-            # Skip empty text
-            if not text.strip():
-                continue
+            # Get overall bounding box
+            x0, y0 = min(xs), min(ys)
+            x1, y1 = max(xs), max(ys)
             
-            # Convert 4-point polygon to rectangular bbox (min/max)
-            xs = [point[0] for point in bbox_points]
-            ys = [point[1] for point in bbox_points]
-            
-            line_x0 = min(xs)
-            line_y0 = min(ys)
-            line_x1 = max(xs)
-            line_y1 = max(ys)
-            
-            line_width = line_x1 - line_x0
-            
-            # Split text into words
+            # Split text into individual words
             text_words = text.split()
             
-            if len(text_words) == 1:
-                # Single word - use original bbox
-                words.append(text_words[0])
-                bboxes.append([line_x0, line_y0, line_x1, line_y1])
+            if len(text_words) == 0:
+                continue
+            elif len(text_words) == 1:
+                # Single word - use the full bounding box
+                words.append(text)
+                bboxes.append([x0, y0, x1, y1])
                 confidences.append(confidence)
             else:
-                # Multiple words - distribute line width proportionally to each word
-                text_without_spaces = text.replace(" ", "")
-                char_width = line_width / len(text_without_spaces)
-                current_x = line_x0
+                # Multiple words - estimate individual bounding boxes
+                total_width = x1 - x0
                 
-                for word in text_words:
-                    word_width = char_width * len(word)
-                    word_x0 = current_x
+                # Calculate character count for each word (including spaces)
+                word_char_counts = [len(w) for w in text_words]
+                total_chars = sum(word_char_counts) + len(text_words) - 1  # Add spaces
+                
+                # Estimate width for each word proportionally
+                current_x = x0
+                for i, word in enumerate(text_words):
+                    # Calculate word width based on character proportion
+                    word_width = (word_char_counts[i] / total_chars) * total_width
+                    
+                    # Add space width if not the last word
+                    if i < len(text_words) - 1:
+                        space_width = (1 / total_chars) * total_width
+                    else:
+                        space_width = 0
+                    
+                    # Create bounding box for this word
                     word_x1 = current_x + word_width
                     
                     words.append(word)
-                    bboxes.append([word_x0, line_y0, word_x1, line_y1])
+                    bboxes.append([current_x, y0, word_x1, y1])
                     confidences.append(confidence)
                     
-                    # Move to next word (NO extra space added)
-                    current_x = word_x1  # <-- Changed: remove the "+ char_width"
+                    # Move to next word position
+                    current_x = word_x1 + space_width
             
         return {
             'text': words,
@@ -244,7 +248,7 @@ def main():
     aoi = AOI()
     
     # Path to AOI dataset
-    dataset_base_path = Path(__file__).parent.parent.parent / 'data' / 'Eye_Tracking_Datasets'
+    dataset_base_path = Path(__file__).parent.parent.parent / 'data_example' / 'Eye_Tracking_Datasets'
     text_aoi_path = dataset_base_path / 'Text' / 'AOI_Dataset'
     
     # Create output directory
@@ -257,13 +261,9 @@ def main():
     
     for image_file in image_files:
         image_path = str(image_file)
-        try:
-            data = aoi.extract_text_and_bboxes_from_image(image_path)
-            output_path = output_dir / f"visualized_{image_file.name}"
-            aoi.visualize_bboxes(image_path, str(output_path))
-            print(f"Saved: {output_path}")
-        except Exception as e:
-            print(f"Error processing {image_file}: {e}")
+        data = aoi.extract_text_and_bboxes_from_image(image_path)
+        output_path = output_dir / f"visualized_{image_file.name}"
+        aoi.visualize_bboxes(image_path, str(output_path))
 
 
 if __name__ == "__main__":
