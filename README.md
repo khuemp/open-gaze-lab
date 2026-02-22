@@ -39,7 +39,13 @@ A web-based application for processing eye-tracking gaze data to detect and clas
 
 ## Quick Start
 
-### Option A: Windows (Easiest)
+### Installation
+```bash
+pip install -r requirements.txt
+npm install
+```
+
+### Option A: Windows
 Double-click `start_servers.bat` in the root directory. This opens two terminals and starts both servers automatically.
 
 ### Option B: Manual Start
@@ -47,7 +53,6 @@ Double-click `start_servers.bat` in the root directory. This opens two terminals
 **1. Start Backend:**
 ```bash
 cd event_detection-backend
-pip install -r requirements.txt
 python main.py
 ```
 Backend runs at: `http://127.0.0.1:5000`
@@ -55,7 +60,6 @@ Backend runs at: `http://127.0.0.1:5000`
 **2. Start Frontend:**
 ```bash
 cd event_detection-frontend
-npm install
 npm run start
 ```
 Frontend opens at: `http://localhost:8000`
