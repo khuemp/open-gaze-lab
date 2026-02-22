@@ -1,7 +1,7 @@
 {
     "name": "event-detection-frontend",
     "version": "1.0.0",
-    "description": "Eye-tracking Fixation Detection Frontend",
+    "description": "Eye-tracking Event Detection Frontend",
     "scripts": {
         "start": "http-server -p 8000 -c-1 -o",
         "dev": "http-server -p 8000 -c-1 -o"

@@ -1,4 +1,4 @@
-# Eye-tracking Fixation Detection Toolkit
+# Eye-tracking Event Detection Toolkit
 
 A web-based application for processing eye-tracking gaze data to detect and classify **fixations**, **saccades**, and **blinks**. Provides both a Python processing pipeline and a modern web interface for researchers working with eye-tracking data.
 
