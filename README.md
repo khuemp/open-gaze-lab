@@ -109,10 +109,10 @@ Optionally upload a screenshot or stimulus image (PNG, JPG, BMP, GIF, WebP) to d
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| **Display Resolution** | 2560,1440 | Screen resolution in pixels (width,height) |
+| **Display Resolution** | 2560,1440 | Screen resolution in pixels (wI-DTh,height) |
 | **Minimal Fixation Duration** | 100 ms | Minimum duration for valid fixation |
 | **Detection Threshold** | 125 | For I-DT: dispersion in pixels. For I-VT: velocity in pixels/ms |
-| **Algorithm** | IDT | Detection algorithm: `IDT` or `IVT` |
+| **Algorithm** | I-DT | Detection algorithm: `I-DT` or `I-VT` |
 | **Sampling Rate** | 250 Hz | Eye-tracker sampling rate |
 | **Merge Threshold** | None | Max distance (px) to merge nearby fixations |
 | **Adaptive Threshold** | Off | Enable adaptive threshold adjustment |

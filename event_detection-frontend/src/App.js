@@ -136,16 +136,6 @@ function App() {
                             fileName={backgroundImage?.name}
                         />
                     </div>
-                    {results?.result?.events_file && (
-                        <a
-                            href={`http://127.0.0.1:5000/api/results/${results.filename}`}
-                            className="download-button"
-                            download
-                            style={{ marginTop: '0.75rem', display: 'inline-block' }}
-                        >
-                            Download Events CSV
-                        </a>
-                    )}
                 </div>
 
                 <div className="panel">
@@ -191,8 +181,8 @@ function App() {
                                 onChange={(e) => setAlgorithm(e.target.value)}
                                 className="input-field"
                             >
-                                <option value="idt">IDT</option>
-                                <option value="ivt">IVT</option>
+                                <option value="idt">I-DT</option>
+                                <option value="ivt">I-VT</option>
                             </select>
                         </div>
 
@@ -420,7 +410,18 @@ function BackgroundImageUpload({ onImageSelect, fileName }) {
 function ResultsDisplay({ results }) {
     return (
         <div className="results-container">
-            <h2>Detection Results</h2>
+            <div className="results-header">
+                <h2>Detection Results</h2>
+                {results.result?.events_file && (
+                    <a
+                        href={`http://127.0.0.1:5000/api/results/${results.filename}`}
+                        className="download-button"
+                        download
+                    >
+                        Download Events CSV
+                    </a>
+                )}
+            </div>
 
             <div className="results-grid">
                 <div className="result-card">

@@ -51,7 +51,7 @@ Browser should open at `http://localhost:8000`
    - Display Resolution: 2560,1440
    - Minimal Fixation Duration: 50 ms
    - Detection Threshold: 0.5
-   - Algorithm: IDT
+   - Algorithm: I-DT
    - Sampling Rate: 1000 Hz
 
 4. **Click "Process Gaze Data"** and wait for processing

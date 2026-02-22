@@ -22,7 +22,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
         threshold (float): Initial detection threshold in pixels
         adapt (bool, optional): Whether to adapt threshold. Defaults to False.
         tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.
-        is_velocity_based (bool, optional): True for IVT, False for IDT. Defaults to True.
+        is_velocity_based (bool, optional): True for I-VT, False for I-DT. Defaults to True.
 
     Returns:
         tuple: (

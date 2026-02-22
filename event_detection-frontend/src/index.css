@@ -353,6 +353,17 @@ body {
     font-weight: 600;
 }
 
+.results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.results-header h2 {
+    margin-bottom: 0;
+}
+
 .results-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);

@@ -169,7 +169,7 @@ def detect_event(self, min_fixation_duration=50, aois=None,
         algorithm (str, optional): Detection algorithm to use ('idt' or 'ivt').
             Defaults to None.
         detect_threshold (float, optional): Initial threshold for detection algorithm.
-            For IVT: velocity in pixels/ms. For IDT: dispersion in pixels.
+            For I-VT: velocity in pixels/ms. For I-DT: dispersion in pixels.
             Defaults to 150.0.
         fixation_merge_threshold (float, optional): Maximum distance in pixels between
             fixations to be merged. If None, no merging occurs. Defaults to None.
@@ -245,7 +245,7 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         fixation_merge_threshold (float, optional): Maximum distance in pixels between
             fixations to be merged. If None, no merging occurs. Defaults to None.
         detect_threshold (float, optional): Initial threshold for detection algorithm.
-            For IVT: velocity in pixels/ms. For IDT: dispersion in pixels.
+            For I-VT: velocity in pixels/ms. For I-DT: dispersion in pixels.
             Defaults to 150.0.
         adapt (bool, optional): Whether to use adaptive thresholding based on
             data characteristics. Defaults to False.
