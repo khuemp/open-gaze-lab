@@ -164,7 +164,7 @@ function App() {
                         </div>
 
                         <div className="control-group">
-                            <label htmlFor="min-fixation">Min Fixation Duration (ms)</label>
+                            <label htmlFor="min-fixation">Minimal Fixation Duration (ms)</label>
                             <NumericInput
                                 id="min-fixation"
                                 value={minFixationDuration}

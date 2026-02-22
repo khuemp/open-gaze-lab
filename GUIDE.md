@@ -49,7 +49,7 @@ Browser should open at `http://localhost:8000`
 
 3. **Configure parameters** (or use defaults):
    - Display Resolution: 2560,1440
-   - Min Fixation Duration: 50 ms
+   - Minimal Fixation Duration: 50 ms
    - Detection Threshold: 0.5
    - Algorithm: IDT
    - Sampling Rate: 1000 Hz
