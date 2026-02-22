@@ -3,7 +3,7 @@ REM Start both backend and frontend servers
 
 echo.
 echo ============================================
-echo Eye Tracking Fixation Detection - Web App
+echo Eye-tracking Fixation Detection - Web App
 echo ============================================
 echo.
 
@@ -24,12 +24,12 @@ if errorlevel 1 (
 )
 
 echo Starting backend server...
-start cmd /k "cd event_detection-backend && python app.py"
+start cmd /k "cd event_detection-backend && python main.py"
 
 timeout /t 3 /nobreak
 
 echo Starting frontend server...
-start cmd /k "cd event_detection-frontend && npm start"
+start cmd /k "cd event_detection-frontend && npm run start"
 
 echo.
 echo ============================================

@@ -1,169 +1,218 @@
-# Eye Tracking Fixation Detection - Web Application
+# Eye-tracking Fixation Detection Toolkit
 
-A web application for uploading eye-tracking gaze data and detecting fixations with customizable parameters.
+A web-based application for processing eye-tracking gaze data to detect and classify **fixations**, **saccades**, and **blinks**. Provides both a Python processing pipeline and a modern web interface for researchers working with eye-tracking data.
 
-**New Feature**: ⏱️ Time-scrolling visualization! See how fixations and gaze points appear progressively over time with interactive play/pause controls and a time slider. [Learn more](TIME_SCROLLING_GUIDE.md)
+> **Note**: Requires Python 3.11 or below.
 
-Not support python versions above 3.11 yet.
+---
+
+## Features
+
+### Data Processing
+- **Automatic delimiter detection**: Supports `;`, `,`, `\t`, `|`, and space
+- **Automatic column mapping**: Detects x/y/timestamp column names automatically
+- **Coordinate normalization detection**: Auto-detects normalized (0-1) vs pixel coordinates
+- **Timestamp correction**: Regularizes irregular timestamps to uniform intervals
+- **Blink detection**: Identifies NaN/missing gaze data as blinks
+- **Fixation merging**: Combines spatially close consecutive fixations using duration-weighted averaging
+
+### Detection Algorithms
+- **I-DT (Dispersion-Threshold)**: Classifies fixations based on spatial dispersion
+- **I-VT (Velocity-Threshold)**: Classifies fixations based on point-to-point velocity
+- **Adaptive thresholding**: Adjusts threshold based on movement variability (MAD)
+- **Threshold optimization**: Uses Calinski-Harabasz score for automatic parameter tuning
+
+### Visualization
+- **Static visualization**: Interactive Plotly plot with gaze points, fixations, and scanpath
+- **Time-scrolling visualization**: Animated playback with play/pause controls and time slider
+- **AOI overlay**: Display Areas of Interest on visualizations
+- **Background image support**: Overlay visualizations on stimulus images
+
+### Web Interface
+- **Drag-and-drop upload**: Easy CSV file selection
+- **Parameter configuration**: Full control over detection parameters
+- **Real-time results**: Statistics display (fixations, saccades, blinks counts)
+- **CSV export**: Download processed event data
+- **Embedded visualizations**: View plots directly in browser
+
+---
+
+## Quick Start
+
+### Option A: Windows (Easiest)
+Double-click `start_servers.bat` in the root directory. This opens two terminals and starts both servers automatically.
+
+### Option B: Manual Start
+
+**1. Start Backend:**
+```bash
+cd event_detection-backend
+pip install -r requirements.txt
+python main.py
+```
+Backend runs at: `http://127.0.0.1:5000`
+
+**2. Start Frontend:**
+```bash
+cd event_detection-frontend
+npm install
+npm run start
+```
+Frontend opens at: `http://localhost:8000`
+
+---
 
 ## Project Structure
 
 ```
-event_detection-backend/     # FastAPI backend
-  ├── app.py                 # FastAPI application
-  ├── src/                   # Event detection modules
-  │   ├── pipeline.py        # EventDetection pipeline
-  │   ├── detection_algorithms.py
-  │   ├── visualization.py   # Visualization functions
-  │   └── ...
-  └── data/                  # Output directories
-      ├── uploads/           # Uploaded CSV files
-      └── results/           # Processing results
-
-event_detection-frontend/    # React frontend
-  ├── index.html             # Main HTML file
-  ├── package.json           # NPM dependencies
-  └── src/
-      ├── App.js             # Main React component
-      ├── index.css          # Styling
-      └── App.css            # Component styles
+fixation_detection/
+├── start_servers.bat              # Windows startup script
+├── README.md                      # This file
+├── GUIDE.md                       # Quick start guide
+│
+├── event_detection-backend/       # Python FastAPI backend
+│   ├── main.py                    # API server
+│   ├── requirements.txt           # Python dependencies
+│   ├── src/
+│   │   ├── __init__.py            # EventDetection & EyeTrackingVisualizer classes
+│   │   ├── detection_algorithms.py # I-DT and I-VT implementations
+│   │   ├── pipeline.py            # Event detection pipeline
+│   │   ├── visualization.py       # Plotly visualizations
+│   │   ├── utils.py               # Velocity, MAD, merging utilities
+│   │   └── aoi.py                 # AOI classification
+│   └── data/
+│       ├── uploads/               # Uploaded CSV files
+│       ├── events/                # Processed event CSVs
+│       └── visualization/         # HTML visualizations
+│
+└── event_detection-frontend/      # React frontend
+    ├── index.html
+    ├── package.json
+    └── src/
+        ├── App.js                 # Main React application
+        ├── App.css                # Component styles
+        └── index.css              # Global styles
 ```
 
-## Installation
-
-### Backend
-
-1. Install Python dependencies:
-```bash
-cd event_detection-backend
-pip install -r requirements.txt
-```
-
-2. Start the FastAPI server:
-```bash
-python main.py
-```
-
-The backend will run on `http://127.0.0.1:5000`
-
-**Interactive API Documentation**: Visit `http://127.0.0.1:5000/docs` for Swagger UI
-
-### Frontend
-
-1. Install Node dependencies:
-```bash
-cd event_detection-frontend
-npm install
-```
-
-2. Start the development server:
-```bash
-npm run start
-```
-
-The frontend will open at `http://localhost:8000`
+---
 
 ## Usage
 
-1. **Upload CSV**: Click on the upload area to select your gaze data CSV file
-2. **Configure Parameters**:
-   - **Display Resolution**: Screen resolution in WxH format (e.g., 2560,1440)
-   - **Min Fixation Duration**: Minimum duration for a fixation in milliseconds (default: 50)
-   - **Detection Threshold**: Sensitivity for fixation detection (0.0-1.0, default: 0.5)
-   - **Algorithm**: Choose between IDT or IVT detection algorithm
-   - **Sampling Rate**: Eye-tracker sampling rate in Hz (default: 1000)
-3. **Process**: Click the "Process Gaze Data" button
-4. **View Results**: Once processing completes, you can:
-   - View summary statistics (number of fixations, saccades, events)
-   - Download the events CSV file
-   - View interactive plot of gaze data
+### Step 1: Upload CSV
+Click or drag-and-drop your gaze data CSV file into the upload area.
 
-## API Endpoints
+### Step 2: Configure Parameters
 
-### `POST /api/upload`
-Upload CSV file with detection parameters.
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **Display Resolution** | 2560,1440 | Screen resolution in pixels (width,height) |
+| **Min Fixation Duration** | 100 ms | Minimum duration for valid fixation |
+| **Detection Threshold** | 125 | For I-DT: dispersion in pixels. For I-VT: velocity in pixels/ms |
+| **Algorithm** | IDT | Detection algorithm: `IDT` or `IVT` |
+| **Sampling Rate** | 250 Hz | Eye-tracker sampling rate |
+| **Merge Threshold** | None | Max distance (px) to merge nearby fixations |
+| **Adaptive Threshold** | Off | Enable adaptive threshold adjustment |
 
-**Form Data:**
-- `file` (file): CSV file containing gaze data
-- `resolution` (string): Display resolution "width,height"
-- `min_fixation_duration` (int): Minimum fixation duration in ms
-- `detect_threshold` (float): Detection threshold (0-1)
-- `algorithm` (string): Detection algorithm ('idt' or 'ivt')
-- `sampling_rate` (int): Sampling rate in Hz
+### Step 3: Process
+Click **"Process Gaze Data"** and wait for processing.
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "File processed successfully",
-  "filename": "20240111_120530",
-  "result": {
-    "num_events": 1250,
-    "num_fixations": 150,
-    "num_saccades": 100,
-    "events_file": "data/results/...",
-    "plot_file": "data/results/gaze_plot.html"
-  }
-}
+### Step 4: View Results
+- **Statistics**: Total events, fixation points, saccade points, blink points
+- **Download CSV**: Get processed event data
+- **Static Plot**: View gaze points, fixations, and scanpath
+- **Time-Scrolling Plot**: Watch fixations appear over time with playback controls
+
+---
+
+## Detection Algorithms Explained
+
+### I-DT (Dispersion-Threshold Identification)
+Classifies gaze points as fixations when **spatial dispersion** within a temporal window is below a threshold.
+
+- **Dispersion formula**: `(max_x - min_x) + (max_y - min_y)` in pixels
+- **Best for**: Low sampling rate data, noisy data
+- **Typical threshold**: 100-200 pixels
+
+### I-VT (Velocity-Threshold Identification)
+Classifies gaze points as fixations when **point-to-point velocity** is below a threshold.
+
+- **Velocity formula**: `sqrt(dx² + dy²) / dt` in pixels/ms
+- **Best for**: High sampling rate data, clean data
+- **Typical threshold**: 20-50 pixels/ms
+
+### Adaptive Thresholding
+When enabled, the threshold is automatically adjusted based on movement variability:
 ```
-
-### `GET /api/results/<filename>`
-Download the events CSV file for a processed dataset.
-
-### `GET /api/plot/<filename>`
-Get the interactive HTML plot for a processed dataset.
-
-### `GET /api/status`
-Health check endpoint.
-
-## CSV Format
-
-Your gaze data CSV should contain the following columns:
-- `x`: X coordinate of gaze point
-- `y`: Y coordinate of gaze point
-- `timestamp` (optional): Timestamp of the gaze point
-
-The backend automatically detects common delimiters: `;`, `,`, `\t`, and space.
-
-## Example CSV
-
+adapted_threshold = original_threshold × (1 + tuning_parameter × MAD(velocity))
 ```
+This helps handle individual differences in eye movement patterns.
+
+---
+
+## Input CSV Format
+
+Your CSV file should contain columns for gaze coordinates and timestamps:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `x` or `gaze_x` | Yes | X coordinate (pixels or normalized 0-1) |
+| `y` or `gaze_y` | Yes | Y coordinate (pixels or normalized 0-1) |
+| `timestamp` or `time` | Yes | Time in milliseconds or seconds |
+
+**Auto-detected delimiters**: `;`, `,`, `\t`, `|`, space
+
+### Example CSV
+```csv
 timestamp;x;y
 1000;1280;720
-1010;1281;721
-1020;1282;722
+1010;1281;720
+1020;1282;720
+1030;1500;800
+1040;1501;801
 ```
 
-## Features
+---
 
-- **Automatic Delimiter Detection**: Works with semicolon, comma, tab, or space-separated CSV files
-- **Flexible Parameters**: Customize detection algorithm, sensitivity, and resolution
-- **Real-time Processing**: Process large gaze datasets on the fly
-- **Interactive Visualization**: View gaze points, fixations, and saccades with Plotly
-- **Data Export**: Download processed events as CSV for further analysis
+## Output Data Structure
+
+Each gaze point in the output CSV is classified with:
+
+| Column | Description |
+|--------|-------------|
+| `x`, `y` | Original gaze coordinates (pixels) |
+| `timestamp` | Time in milliseconds |
+| `event_type` | `Fixation`, `Saccade`, or `Blink` |
+| `fixation_x`, `fixation_y` | Fixation centroid coordinates |
+| `fixation_id` | Unique fixation identifier |
+| `saccade_id` | Unique saccade identifier |
+| `blink_id` | Unique blink identifier |
+| `event_duration` | Duration of the event in ms |
+| `start_time`, `end_time` | Event temporal bounds |
+
+---
 
 ## Troubleshooting
 
 ### Backend won't start
-- Check if FastAPI and uvicorn are installed: `pip install -r requirements.txt`
-- Make sure port 5000 is not in use
-- Check console output for error messages
+- Ensure Python 3.11 or below is installed
+- Install dependencies: `pip install -r requirements.txt`
+- Check if port 5000 is in use: try a different port
+- Check console for error messages
 
 ### Frontend can't connect to backend
-- Ensure backend is running on `http://127.0.0.1:5000`
-- Visit `http://127.0.0.1:5000/docs` to verify API is working
+- Backend must be running on `http://127.0.0.1:5000`
+- Frontend must be on `http://localhost:8000`
 - Check browser console for CORS errors
-- Frontend should be on `http://localhost:8000`
+- Restart both servers
 
 ### Processing fails
-- Check CSV format (expected columns: x, y, and optionally timestamp)
-- Verify delimiter is correctly auto-detected
-- Check console logs for specific error messages
+- Check CSV has required columns (x, y, timestamp)
+- Verify data doesn't contain text in numeric columns
+- Try different delimiter if auto-detection fails
+- Check for NaN values in coordinate columns
 
-## Development
-
-To modify the application:
-- **Backend**: Edit files in `event_detection-backend/src/`
-- **Frontend**: Edit files in `event_detection-frontend/src/`
-
-After making changes, restart the respective servers.
+### No fixations detected
+- Try lowering the detection threshold
+- Increase min_fixation_duration if data is noisy
+- Switch between I-DT and I-VT algorithms
+- Enable adaptive thresholding

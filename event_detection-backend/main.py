@@ -1,5 +1,5 @@
 """
-FastAPI backend for Eye Tracking Fixation Detection.
+FastAPI backend for Eye-tracking Fixation Detection.
 Handles CSV file uploads and processes them using the detection pipeline.
 """
 
@@ -17,7 +17,7 @@ from datetime import datetime
 from src import EventDetection, EyeTrackingVisualizer
 
 app = FastAPI(
-    title="Eye Tracking Fixation Detection API",
+    title="Eye-tracking Fixation Detection API",
     description="API for processing eye-tracking gaze data and detecting fixations",
     version="1.0.0"
 )

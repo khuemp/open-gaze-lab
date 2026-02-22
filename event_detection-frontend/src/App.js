@@ -115,7 +115,7 @@ function App() {
     return (
         <div className="container">
             <header className="header">
-                <h1>Eye Tracking Fixation Detection</h1>
+                <h1>Eye-tracking Fixation Detection</h1>
                 <p>Upload gaze data and detect fixations with customizable parameters</p>
             </header>
 
