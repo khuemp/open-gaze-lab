@@ -1,6 +1,20 @@
 
+import base64
 import plotly.graph_objs as go
 import plotly.offline as pyo
+
+
+def _encode_image_base64(image_path):
+    """Encode an image file to a base64 data URI for Plotly."""
+    ext = image_path.lower().split('.')[-1]
+    mime_types = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 
+                  'gif': 'image/gif', 'webp': 'image/webp', 'bmp': 'image/bmp'}
+    mime_type = mime_types.get(ext, 'image/png')
+    
+    with open(image_path, 'rb') as f:
+        encoded = base64.b64encode(f.read()).decode('utf-8')
+    return f"data:{mime_type};base64,{encoded}"
+
 
 def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=None, show_attach=True,
                                     attach_type='bbox'):
@@ -38,6 +52,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     """
 
     gaze_data = self.event_data_df.copy()
+    res_w, res_h = self.resolution
 
     # Color palette
     color_map = {
@@ -81,7 +96,10 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         name='Scanpath'
     )
 
-    # Layout
+    # Layout - hide grid when background image is present
+    show_grid = bg_image_path is None
+    plot_bg = '#fafafa' if bg_image_path is None else 'rgba(0,0,0,0)'
+    
     layout = go.Layout(
         title=dict(
             text='Gaze and Fixation Visualization',
@@ -91,26 +109,29 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         ),
         xaxis=dict(
             title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
-            range=[0, 2560],
-            showgrid=True,
+            range=[0, res_w],
+            autorange=False,
+            showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
             zeroline=False,
             showline=True,
             linecolor='#ddd',
             tickfont=dict(size=10, color='#666'),
             scaleanchor='y',
-            scaleratio=1
+            scaleratio=1,
+            constrain='domain'
         ),
         yaxis=dict(
             title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
-            range=[1440, 0],
+            range=[res_h, 0],
             autorange=False,
-            showgrid=True,
+            showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
             zeroline=False,
             showline=True,
             linecolor='#ddd',
-            tickfont=dict(size=10, color='#666')
+            tickfont=dict(size=10, color='#666'),
+            constrain='domain'
         ),
         showlegend=True,
         legend=dict(
@@ -124,7 +145,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             bordercolor='#ddd',
             borderwidth=1
         ),
-        plot_bgcolor='#fafafa',
+        plot_bgcolor=plot_bg,
         paper_bgcolor='white',
         margin=dict(l=60, r=40, t=80, b=60)
     )
@@ -135,13 +156,13 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     if bg_image_path is not None:
         try:
-            with open(bg_image_path, 'rb') as f:
-                image = f.read()
+            image_source = _encode_image_base64(bg_image_path)
             fig.add_layout_image(dict(
-                source=image,
+                source=image_source,
                 xref="x", yref="y",
                 x=0, y=0,
-                sizex=2560, sizey=1440,
+                sizex=res_w, sizey=res_h,
+                xanchor='left', yanchor='top',
                 sizing="stretch",
                 opacity=0.35,
                 layer="below"
@@ -232,6 +253,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     """
     
     gaze_data = self.event_data_df.copy()
+    res_w, res_h = self.resolution
     
     # Sort by timestamp to ensure correct temporal sequence
     gaze_data = gaze_data.sort_values('timestamp').reset_index(drop=True)
@@ -300,7 +322,10 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     # Initial frame
     initial_data = frames[0].data if frames else []
     
-    # Layout
+    # Layout - hide grid when background image is present
+    show_grid = bg_image_path is None
+    plot_bg = '#fafafa' if bg_image_path is None else 'rgba(0,0,0,0)'
+    
     layout = go.Layout(
         title=dict(
             text='Gaze and Fixation Time-Scrolling Visualization',
@@ -310,26 +335,29 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         ),
         xaxis=dict(
             title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
-            range=[0, 2560],
-            showgrid=True,
+            range=[0, res_w],
+            autorange=False,
+            showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
             zeroline=False,
             showline=True,
             linecolor='#ddd',
             tickfont=dict(size=10, color='#666'),
             scaleanchor='y',
-            scaleratio=1
+            scaleratio=1,
+            constrain='domain'
         ),
         yaxis=dict(
             title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
-            range=[1440, 0],
+            range=[res_h, 0],
             autorange=False,
-            showgrid=True,
+            showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
             zeroline=False,
             showline=True,
             linecolor='#ddd',
-            tickfont=dict(size=10, color='#666')
+            tickfont=dict(size=10, color='#666'),
+            constrain='domain'
         ),
         showlegend=True,
         legend=dict(
@@ -343,7 +371,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
             bordercolor='#ddd',
             borderwidth=1
         ),
-        plot_bgcolor='#fafafa',
+        plot_bgcolor=plot_bg,
         paper_bgcolor='white',
         margin=dict(l=60, r=40, t=80, b=100),
         updatemenus=[{
@@ -418,13 +446,13 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     
     if bg_image_path is not None:
         try:
-            with open(bg_image_path, 'rb') as f:
-                image = f.read()
+            image_source = _encode_image_base64(bg_image_path)
             fig.add_layout_image(dict(
-                source=image,
+                source=image_source,
                 xref="x", yref="y",
                 x=0, y=0,
-                sizex=2560, sizey=1440,
+                sizex=res_w, sizey=res_h,
+                xanchor='left', yanchor='top',
                 sizing="stretch",
                 opacity=0.35,
                 layer="below"

@@ -93,7 +93,7 @@ class EyeTrackingVisualizer:
             Creates an interactive time-scrollable visualization of gaze data and fixations.
     """
 
-    def __init__(self, loaded_event_df):
+    def __init__(self, loaded_event_df, resolution=(2560, 1440)):
         """Initializes the EyeTrackingVisualizer class."""
         # Set up logging system with detailed format
         logging.basicConfig(
@@ -101,6 +101,7 @@ class EyeTrackingVisualizer:
         )
         # Create independent copy of event data to prevent modifications
         self.event_data_df = loaded_event_df.copy()
+        self.resolution = resolution
 
         # Attach visualization functions as instance methods
         self.plot_gaze_points_and_fixations = plot_gaze_points_and_fixations.__get__(self)

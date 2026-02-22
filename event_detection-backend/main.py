@@ -36,11 +36,14 @@ BASE_DIR = Path(__file__).parent
 UPLOAD_FOLDER = BASE_DIR / 'data' / 'uploads'
 EVENTS_FOLDER = BASE_DIR / 'data' / 'events'
 VISUALIZATION_FOLDER = BASE_DIR / 'data' / 'visualization'
+IMAGES_FOLDER = BASE_DIR / 'data' / 'images'
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 EVENTS_FOLDER.mkdir(parents=True, exist_ok=True)
 VISUALIZATION_FOLDER.mkdir(parents=True, exist_ok=True)
+IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB for images
 
 
 def detect_delimiter(file_path):
@@ -120,7 +123,8 @@ async def upload_file(
     algorithm: str = Form("idt"),
     sampling_rate: int = Form(1000),
     fixation_merge_threshold: Optional[float] = Form(None),
-    adapt: bool = Form(False)
+    adapt: bool = Form(False),
+    background_image: Optional[UploadFile] = File(None)
 ):
     """
     Upload CSV file and parameters for processing.
@@ -133,6 +137,7 @@ async def upload_file(
     - **sampling_rate**: Sampling rate in Hz
     - **fixation_merge_threshold**: Maximum distance to merge fixations (pixels, optional)
     - **adapt**: Enable adaptive threshold adjustment (boolean)
+    - **background_image**: Optional background image file for visualization
     """
     # Validate file
     if not file.filename:
@@ -162,6 +167,26 @@ async def upload_file(
     with open(file_path, 'wb') as f:
         f.write(content)
     
+    # Handle background image if provided
+    bg_image_path = None
+    if background_image and background_image.filename:
+        # Validate image type
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+        image_ext = Path(background_image.filename).suffix.lower()
+        if image_ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Invalid image format. Use PNG, JPG, GIF, BMP, or WebP")
+        
+        # Read and validate image size
+        image_content = await background_image.read()
+        if len(image_content) > MAX_IMAGE_SIZE:
+            raise HTTPException(status_code=400, detail="Image size exceeds 20MB limit")
+        
+        # Save the image
+        image_filename = f"{original_name}_bg{image_ext}"
+        bg_image_path = IMAGES_FOLDER / image_filename
+        with open(bg_image_path, 'wb') as f:
+            f.write(image_content)
+    
     # Process the file
     result = process_gaze_data(
         file_path,
@@ -172,7 +197,8 @@ async def upload_file(
         sampling_rate=sampling_rate,
         output_name=original_name,
         fixation_merge_threshold=fixation_merge_threshold,
-        adapt=adapt
+        adapt=adapt,
+        bg_image_path=str(bg_image_path) if bg_image_path else None
     )
     
     return {
@@ -185,7 +211,7 @@ async def upload_file(
 
 def process_gaze_data(file_path, resolution, min_fixation_duration, 
                      detect_threshold, algorithm, sampling_rate, output_name,
-                     fixation_merge_threshold=None, adapt=False):
+                     fixation_merge_threshold=None, adapt=False, bg_image_path=None):
     """
     Process gaze data CSV file using EventDetection pipeline.
     
@@ -199,6 +225,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         output_name: Output filename prefix
         fixation_merge_threshold: Maximum distance to merge fixations (pixels, optional)
         adapt: Enable adaptive threshold adjustment (boolean)
+        bg_image_path: Path to background image for visualization (optional)
     
     Returns:
         Dictionary with processing results
@@ -245,10 +272,10 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     
     # Create standard visualization using EyeTrackingVisualizer class
     plot_file = VISUALIZATION_FOLDER / f"{output_name}_visualization.html"
-    visualizer = EyeTrackingVisualizer(detector.event_data_df)
+    visualizer = EyeTrackingVisualizer(detector.event_data_df, resolution=resolution)
     visualizer.plot_gaze_points_and_fixations(
         str(plot_file),
-        bg_image_path=None,
+        bg_image_path=bg_image_path,
         aois=None,
         show_attach=False
     )
@@ -257,7 +284,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     time_plot_file = VISUALIZATION_FOLDER / f"{output_name}_time_visualization.html"
     visualizer.plot_gaze_with_time_scrolling(
         str(time_plot_file),
-        bg_image_path=None,
+        bg_image_path=bg_image_path,
         aois=None,
         time_window_ms=5000,
         step_ms=100

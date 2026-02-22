@@ -26,10 +26,10 @@ A web-based application for processing eye-tracking gaze data to detect and clas
 - **Static visualization**: Interactive Plotly plot with gaze points, fixations, and scanpath
 - **Time-scrolling visualization**: Animated playback with play/pause controls and time slider
 - **AOI overlay**: Display Areas of Interest on visualizations
-- **Background image support**: Overlay visualizations on stimulus images
+- **Background image support**: Overlay stimulus screen image behind gaze plots
 
 ### Web Interface
-- **Drag-and-drop upload**: Easy CSV file selection
+- **Drag-and-drop upload**: Easy CSV and background image selection
 - **Parameter configuration**: Full control over detection parameters
 - **Real-time results**: Statistics display (fixations, saccades, blinks counts)
 - **CSV export**: Download processed event data
@@ -82,6 +82,7 @@ fixation_detection/
 │   │   └── aoi.py                 # AOI classification
 │   └── data/
 │       ├── uploads/               # Uploaded CSV files
+│       ├── images/                # Uploaded background images
 │       ├── events/                # Processed event CSVs
 │       └── visualization/         # HTML visualizations
 │
@@ -100,6 +101,9 @@ fixation_detection/
 
 ### Step 1: Upload CSV
 Click or drag-and-drop your gaze data CSV file into the upload area.
+
+### Step 1b: Upload Background Image (Optional)
+Optionally upload a screenshot or stimulus image (PNG, JPG, BMP, GIF, WebP) to display behind the gaze plots. The image is mapped to the full display resolution so gaze positions align with on-screen content. When a background image is present, the plot grid is hidden and the background is made transparent for a cleaner overlay.
 
 ### Step 2: Configure Parameters
 

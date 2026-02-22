@@ -54,6 +54,7 @@ function NumericInput({ id, value, onChange, placeholder, className, allowDecima
 
 function App() {
     const [file, setFile] = useState(null);
+    const [backgroundImage, setBackgroundImage] = useState(null);
     const [resolution, setResolution] = useState('2560,1440');
     const [minFixationDuration, setMinFixationDuration] = useState('100');
     const [detectThreshold, setDetectThreshold] = useState('125');
@@ -64,6 +65,10 @@ function App() {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const handleBackgroundImageSelect = (selectedFile) => {
+        setBackgroundImage(selectedFile);
+    };
 
     const handleFileSelect = (selectedFile) => {
         setFile(selectedFile);
@@ -92,6 +97,9 @@ function App() {
                 formData.append('fixation_merge_threshold', fixationMergeThreshold);
             }
             formData.append('adapt', adapt.toString());
+            if (backgroundImage) {
+                formData.append('background_image', backgroundImage);
+            }
 
             const response = await fetch('http://127.0.0.1:5000/api/upload', {
                 method: 'POST',
@@ -121,7 +129,13 @@ function App() {
 
             <main className="main-content">
                 <div className="panel">
-                    <FileUpload onFileSelect={handleFileSelect} fileName={file?.name} />
+                    <div className="upload-row">
+                        <FileUpload onFileSelect={handleFileSelect} fileName={file?.name} />
+                        <BackgroundImageUpload
+                            onImageSelect={handleBackgroundImageSelect}
+                            fileName={backgroundImage?.name}
+                        />
+                    </div>
                     {results?.result?.events_file && (
                         <a
                             href={`http://127.0.0.1:5000/api/results/${results.filename}`}
@@ -304,12 +318,101 @@ function FileUpload({ onFileSelect, fileName }) {
                         </svg>
                     </div>
                     <p className="upload-text">
-                        {fileName ? `Selected: ${fileName}` : 'Click to select CSV file'}
+                        {fileName ? `Selected: ${fileName}` : 'Select CSV file'}
                     </p>
                     <p className="upload-hint">or drag and drop</p>
                 </label>
             </div>
             {fileName && <div className="file-selected">File ready for processing</div>}
+        </div>
+    );
+}
+
+function BackgroundImageUpload({ onImageSelect, fileName }) {
+    const [isDragging, setIsDragging] = React.useState(false);
+
+    const handleFileChange = (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                onImageSelect(file);
+            } else {
+                alert('Please select an image file (PNG, JPG, etc.)');
+            }
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                onImageSelect(file);
+            } else {
+                alert('Please select an image file (PNG, JPG, etc.)');
+            }
+        }
+    };
+
+    const handleClear = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onImageSelect(null);
+    };
+
+    return (
+        <div className="file-upload background-image-upload">
+            <h2>Background Image</h2>
+            <div
+                className={`upload-area ${isDragging ? 'dragging' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    id="bg-image-input"
+                    className="hidden-input"
+                />
+                <label htmlFor="bg-image-input" className="upload-label">
+                    <div className="upload-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                    </div>
+                    <p className="upload-text">
+                        {fileName ? `Selected: ${fileName}` : 'Select background image'}
+                    </p>
+                    <p className="upload-hint">or drag and drop</p>
+                </label>
+            </div>
+            {fileName && (
+                <div className="file-selected bg-image-selected">
+                    Image will be shown behind plots
+                    <button onClick={handleClear} className="clear-image-btn">Clear</button>
+                </div>
+            )}
         </div>
     );
 }
