@@ -214,7 +214,15 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             ))
 
     # Save the figure to an HTML file
-    pyo.plot(fig, filename=output_dir, auto_open=False)
+    plot_config = {
+        'toImageButtonOptions': {
+            'format': 'png',
+            'width': res_w,
+            'height': res_h,
+            'scale': 3
+        }
+    }
+    pyo.plot(fig, filename=output_dir, auto_open=False, config=plot_config)
 
 
 def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=None, 
@@ -481,4 +489,12 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
                 font=dict(color='#5a7a8a', size=11, family='Arial')
             )
     
-    pyo.plot(fig, filename=output_dir, auto_open=False)
+    plot_config = {
+        'toImageButtonOptions': {
+            'format': 'png',
+            'width': res_w,
+            'height': res_h,
+            'scale': 3
+        }
+    }
+    pyo.plot(fig, filename=output_dir, auto_open=False, config=plot_config)
