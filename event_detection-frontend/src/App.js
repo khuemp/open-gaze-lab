@@ -62,6 +62,7 @@ function App() {
     const [samplingRate, setSamplingRate] = useState('250');
     const [fixationMergeThreshold, setFixationMergeThreshold] = useState('');
     const [adapt, setAdapt] = useState(false);
+    const [yOrigin, setYOrigin] = useState('top-left');
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -97,6 +98,7 @@ function App() {
                 formData.append('fixation_merge_threshold', fixationMergeThreshold);
             }
             formData.append('adapt', adapt.toString());
+            formData.append('y_origin', yOrigin);
             if (backgroundImage) {
                 formData.append('background_image', backgroundImage);
             }
@@ -142,6 +144,37 @@ function App() {
                     <h2>Detection Parameters</h2>
                     <div className="params-grid">
                         <div className="control-group">
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="algorithm">Algorithm</label>
+                                    <select
+                                        id="algorithm"
+                                        value={algorithm}
+                                        onChange={(e) => setAlgorithm(e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="idt">I-DT</option>
+                                        <option value="ivt">I-VT</option>
+                                    </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="y-origin">Plot Origin</label>
+                                    <select
+                                        id="y-origin"
+                                        value={yOrigin}
+                                        onChange={(e) => setYOrigin(e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="top-left">Top-Left</option>
+                                        <option value="top-right">Top-Right</option>
+                                        <option value="bottom-left">Bottom-Left</option>
+                                        <option value="bottom-right">Bottom-Right</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="control-group">
                             <label htmlFor="resolution">Display Resolution (WxH)</label>
                             <input
                                 id="resolution"
@@ -149,6 +182,16 @@ function App() {
                                 value={resolution}
                                 onChange={(e) => setResolution(e.target.value)}
                                 placeholder="2560,1440"
+                                className="input-field"
+                            />
+                        </div>
+
+                        <div className="control-group">
+                            <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
+                            <NumericInput
+                                id="sampling-rate"
+                                value={samplingRate}
+                                onChange={setSamplingRate}
                                 className="input-field"
                             />
                         </div>
@@ -169,29 +212,6 @@ function App() {
                                 id="detect-threshold"
                                 value={detectThreshold}
                                 onChange={setDetectThreshold}
-                                className="input-field"
-                            />
-                        </div>
-
-                        <div className="control-group">
-                            <label htmlFor="algorithm">Algorithm</label>
-                            <select
-                                id="algorithm"
-                                value={algorithm}
-                                onChange={(e) => setAlgorithm(e.target.value)}
-                                className="input-field"
-                            >
-                                <option value="idt">I-DT</option>
-                                <option value="ivt">I-VT</option>
-                            </select>
-                        </div>
-
-                        <div className="control-group">
-                            <label htmlFor="sampling-rate">Sampling Rate (Hz)</label>
-                            <NumericInput
-                                id="sampling-rate"
-                                value={samplingRate}
-                                onChange={setSamplingRate}
                                 className="input-field"
                             />
                         </div>

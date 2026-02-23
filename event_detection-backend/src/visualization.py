@@ -17,7 +17,7 @@ def _encode_image_base64(image_path):
 
 
 def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=None, show_attach=True,
-                                    attach_type='bbox'):
+                                    attach_type='bbox', y_origin='top-left'):
     """Creates an interactive visualization of gaze data, fixations, and AOIs.
 
     Generates a Plotly-based interactive plot showing gaze points, fixations, and
@@ -40,6 +40,9 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             - 'centroid': Show center points
             - 'bbox': Show bounding boxes
             Defaults to 'bbox'.
+        y_origin (str, optional): Origin position for the coordinate system.
+            One of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+            Defaults to 'top-left'.
 
     Returns:
         None: Saves an interactive HTML plot to the specified output directory
@@ -53,6 +56,12 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     gaze_data = self.event_data_df.copy()
     res_w, res_h = self.resolution
+
+    # Determine axis ranges based on origin
+    flip_x = y_origin in ('top-right', 'bottom-right')
+    flip_y = y_origin in ('top-left', 'top-right')  # screen coords: y=0 at top
+    x_range = [res_w, 0] if flip_x else [0, res_w]
+    y_range = [res_h, 0] if flip_y else [0, res_h]
 
     # Color palette
     color_map = {
@@ -109,7 +118,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         ),
         xaxis=dict(
             title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
-            range=[0, res_w],
+            range=x_range,
             autorange=False,
             showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
@@ -123,7 +132,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         ),
         yaxis=dict(
             title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
-            range=[res_h, 0],
+            range=y_range,
             autorange=False,
             showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
@@ -157,10 +166,17 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     if bg_image_path is not None:
         try:
             image_source = _encode_image_base64(bg_image_path)
+            # Position image at the visual top-left corner of the plot.
+            # Plotly layout images always extend rightward and downward in
+            # pixel space from the anchor, so we always use xanchor='left'
+            # and yanchor='top'. The data coordinates for the top-left pixel
+            # depend on axis direction.
+            img_x = res_w if flip_x else 0
+            img_y = 0 if flip_y else res_h
             fig.add_layout_image(dict(
                 source=image_source,
                 xref="x", yref="y",
-                x=0, y=0,
+                x=img_x, y=img_y,
                 sizex=res_w, sizey=res_h,
                 xanchor='left', yanchor='top',
                 sizing="stretch",
@@ -226,7 +242,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
 
 def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=None, 
-                                   time_window_ms=5000, step_ms=100):
+                                   time_window_ms=5000, step_ms=100, y_origin='top-left'):
     """Creates an interactive time-scrollable visualization of gaze data and fixations.
 
     Generates a Plotly-based animated plot that allows users to scroll through time
@@ -248,6 +264,9 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
             Defaults to 5000ms (5 seconds).
         step_ms (float, optional): Time step between animation frames in milliseconds.
             Defaults to 100ms.
+        y_origin (str, optional): Origin position for the coordinate system.
+            One of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+            Defaults to 'top-left'.
 
     Returns:
         None: Saves an interactive HTML plot with time controls to the specified directory
@@ -262,6 +281,12 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     
     gaze_data = self.event_data_df.copy()
     res_w, res_h = self.resolution
+
+    # Determine axis ranges based on origin
+    flip_x = y_origin in ('top-right', 'bottom-right')
+    flip_y = y_origin in ('top-left', 'top-right')  # screen coords: y=0 at top
+    x_range = [res_w, 0] if flip_x else [0, res_w]
+    y_range = [res_h, 0] if flip_y else [0, res_h]
     
     # Sort by timestamp to ensure correct temporal sequence
     gaze_data = gaze_data.sort_values('timestamp').reset_index(drop=True)
@@ -343,7 +368,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         ),
         xaxis=dict(
             title=dict(text='X Position (px)', font=dict(size=11, color='#666')),
-            range=[0, res_w],
+            range=x_range,
             autorange=False,
             showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
@@ -357,7 +382,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
         ),
         yaxis=dict(
             title=dict(text='Y Position (px)', font=dict(size=11, color='#666')),
-            range=[res_h, 0],
+            range=y_range,
             autorange=False,
             showgrid=show_grid,
             gridcolor='rgba(200, 200, 200, 0.3)',
@@ -455,10 +480,17 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     if bg_image_path is not None:
         try:
             image_source = _encode_image_base64(bg_image_path)
+            # Position image at the visual top-left corner of the plot.
+            # Plotly layout images always extend rightward and downward in
+            # pixel space from the anchor, so we always use xanchor='left'
+            # and yanchor='top'. The data coordinates for the top-left pixel
+            # depend on axis direction.
+            img_x = res_w if flip_x else 0
+            img_y = 0 if flip_y else res_h
             fig.add_layout_image(dict(
                 source=image_source,
                 xref="x", yref="y",
-                x=0, y=0,
+                x=img_x, y=img_y,
                 sizex=res_w, sizey=res_h,
                 xanchor='left', yanchor='top',
                 sizing="stretch",

@@ -124,7 +124,8 @@ async def upload_file(
     sampling_rate: int = Form(1000),
     fixation_merge_threshold: Optional[float] = Form(None),
     adapt: bool = Form(False),
-    background_image: Optional[UploadFile] = File(None)
+    background_image: Optional[UploadFile] = File(None),
+    y_origin: str = Form("top-left")
 ):
     """
     Upload CSV file and parameters for processing.
@@ -138,6 +139,7 @@ async def upload_file(
     - **fixation_merge_threshold**: Maximum distance to merge fixations (pixels, optional)
     - **adapt**: Enable adaptive threshold adjustment (boolean)
     - **background_image**: Optional background image file for visualization
+    - **y_origin**: Origin position for plot axes ('top-left', 'top-right', 'bottom-left', 'bottom-right')
     """
     # Validate file
     if not file.filename:
@@ -151,6 +153,11 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
     
+    # Validate y_origin
+    valid_origins = ('top-left', 'top-right', 'bottom-left', 'bottom-right')
+    if y_origin not in valid_origins:
+        raise HTTPException(status_code=400, detail=f"Invalid y_origin. Must be one of: {', '.join(valid_origins)}")
+
     # Parse resolution
     try:
         width, height = map(int, resolution.split(','))
@@ -198,7 +205,8 @@ async def upload_file(
         output_name=original_name,
         fixation_merge_threshold=fixation_merge_threshold,
         adapt=adapt,
-        bg_image_path=str(bg_image_path) if bg_image_path else None
+        bg_image_path=str(bg_image_path) if bg_image_path else None,
+        y_origin=y_origin
     )
     
     return {
@@ -211,7 +219,8 @@ async def upload_file(
 
 def process_gaze_data(file_path, resolution, min_fixation_duration, 
                      detect_threshold, algorithm, sampling_rate, output_name,
-                     fixation_merge_threshold=None, adapt=False, bg_image_path=None):
+                     fixation_merge_threshold=None, adapt=False, bg_image_path=None,
+                     y_origin='top-left'):
     """
     Process gaze data CSV file using EventDetection pipeline.
     
@@ -226,6 +235,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         fixation_merge_threshold: Maximum distance to merge fixations (pixels, optional)
         adapt: Enable adaptive threshold adjustment (boolean)
         bg_image_path: Path to background image for visualization (optional)
+        y_origin: Origin position for plot axes ('top-left', 'top-right', 'bottom-left', 'bottom-right')
     
     Returns:
         Dictionary with processing results
@@ -277,7 +287,8 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         str(plot_file),
         bg_image_path=bg_image_path,
         aois=None,
-        show_attach=False
+        show_attach=False,
+        y_origin=y_origin
     )
     
     # Create time-scrolling visualization
@@ -287,7 +298,8 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         bg_image_path=bg_image_path,
         aois=None,
         time_window_ms=5000,
-        step_ms=100
+        step_ms=100,
+        y_origin=y_origin
     )
     
     return {
