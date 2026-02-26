@@ -272,23 +272,30 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
     fixation_id = 1
 
     while start_idx < n:
-        current_idx = start_idx
-
         if use_precomputed_disp:
             # -----------------------------------------------------------
             # Enhanced path: use the pre-computed per-sample dispersion.
-            # A sample belongs to a fixation if its dispersion value is
-            # below the threshold (possibly adaptive per-sample).
+            # Skip above-threshold samples (saccades) first.
             # -----------------------------------------------------------
+            local_thresh_start = adaptive_thresh[start_idx] if has_adaptive else dispersion_threshold
+            if disp_values[start_idx] > local_thresh_start:
+                start_idx += 1
+                continue
+
+            current_idx = start_idx
             while current_idx < n:
                 local_thresh = adaptive_thresh[current_idx] if has_adaptive else dispersion_threshold
                 if disp_values[current_idx] > local_thresh:
                     break
                 current_idx += 1
+
+            # current_idx > start_idx guaranteed (start_idx passed the check)
+            end_idx = current_idx - 1
         else:
             # -----------------------------------------------------------
             # Legacy expanding-window dispersion (original behaviour)
             # -----------------------------------------------------------
+            current_idx = start_idx
             max_x = x[start_idx]
             min_x = x[start_idx]
             max_y = y[start_idx]
@@ -310,8 +317,9 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 
                 current_idx += 1
 
+            end_idx = current_idx - 1 if current_idx > start_idx else start_idx
+
         # Calculate duration of the current window
-        end_idx = current_idx - 1 if current_idx > start_idx else start_idx
         window_duration = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Check if window meets minimum fixation duration
@@ -389,16 +397,24 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
     fixation_id = 1
 
     while start_idx < n:
-        current_idx = start_idx
+        # Skip above-threshold samples (saccades) – they must never be
+        # labelled Fixation regardless of min_fixation_duration.
+        local_thresh_start = adaptive_thresh[start_idx] if has_adaptive else velocity_threshold
+        if velocity[start_idx] > local_thresh_start:
+            start_idx += 1
+            continue
+
         # Find consecutive points with velocity under threshold
+        current_idx = start_idx
         while current_idx < n:
             local_thresh = adaptive_thresh[current_idx] if has_adaptive else velocity_threshold
             if velocity[current_idx] > local_thresh:
                 break
             current_idx += 1
 
-        # Measure temporal span of low-velocity window
-        end_idx = current_idx - 1 if current_idx > start_idx else start_idx
+        # current_idx > start_idx is guaranteed here (start_idx passed the
+        # threshold check above, so the inner loop advanced at least once).
+        end_idx = current_idx - 1
         window_duration = t[end_idx] - t[start_idx] if end_idx > start_idx else 0.0
 
         # Validate potential fixation duration

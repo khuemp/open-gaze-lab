@@ -139,7 +139,7 @@ def compute_flow_velocity(df: pd.DataFrame) -> pd.DataFrame:
     time_col = "video_timestamp" if "video_timestamp" in df.columns else "timestamp"
 
     flow_t_delta = df[time_col].diff(1)
-    flow_t_delta = flow_t_delta.replace(0, np.nan).ffill().fillna(1)
+    flow_t_delta = flow_t_delta.replace(0, np.nan).ffill().bfill().fillna(1)
 
     df["flow_x_vel"] = df["flow_x"] / flow_t_delta
     df["flow_y_vel"] = df["flow_y"] / flow_t_delta

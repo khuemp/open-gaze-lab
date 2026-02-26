@@ -73,11 +73,23 @@ class EventDetection:
 
         # Convert timestamps to milliseconds if needed
         first_timestamp = self.gaze_data['timestamp'].iloc[0]
+        ts_conversion_factor = None
         if first_timestamp > 1000:  # If timestamps are in seconds (either epoch or regular)
+            ts_conversion_factor = 'epoch'
             self.gaze_data['timestamp'] = (self.gaze_data['timestamp'] - first_timestamp) * 1000
         elif self.gaze_data['timestamp'].iloc[-1] < 100:  # Small values suggest seconds from start
             # Convert from seconds to milliseconds
+            ts_conversion_factor = 'seconds'
             self.gaze_data['timestamp'] = self.gaze_data['timestamp'] * 1000
+
+        # Apply the same conversion to video_timestamp if present (keeps
+        # units consistent for flow-velocity calculation)
+        if 'video_timestamp' in self.gaze_data.columns:
+            if ts_conversion_factor == 'epoch':
+                vt_first = self.gaze_data['video_timestamp'].iloc[0]
+                self.gaze_data['video_timestamp'] = (self.gaze_data['video_timestamp'] - vt_first) * 1000
+            elif ts_conversion_factor == 'seconds':
+                self.gaze_data['video_timestamp'] = self.gaze_data['video_timestamp'] * 1000
         
         # Initialize logging with timestamp and level information
         logging.basicConfig(
