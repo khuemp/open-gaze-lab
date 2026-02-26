@@ -2,6 +2,7 @@
 from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
+from .preprocessing import *
 from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling
 
 class EventDetection:
@@ -42,6 +43,13 @@ class EventDetection:
             rename_map[column_mapping['y']] = 'y'
         if column_mapping.get('timestamp') != 'timestamp' and column_mapping.get('timestamp') in self.gaze_data.columns:
             rename_map[column_mapping['timestamp']] = 'timestamp'
+        # Rename optional optical-flow / video_timestamp columns
+        if column_mapping.get('flow_x') and column_mapping['flow_x'] != 'flow_x' and column_mapping['flow_x'] in self.gaze_data.columns:
+            rename_map[column_mapping['flow_x']] = 'flow_x'
+        if column_mapping.get('flow_y') and column_mapping['flow_y'] != 'flow_y' and column_mapping['flow_y'] in self.gaze_data.columns:
+            rename_map[column_mapping['flow_y']] = 'flow_y'
+        if column_mapping.get('video_timestamp') and column_mapping['video_timestamp'] != 'video_timestamp' and column_mapping['video_timestamp'] in self.gaze_data.columns:
+            rename_map[column_mapping['video_timestamp']] = 'video_timestamp'
         
         if rename_map:
             self.gaze_data = self.gaze_data.rename(columns=rename_map)

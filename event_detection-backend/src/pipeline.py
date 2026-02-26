@@ -91,7 +91,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
     return gaze_data
 
 
-def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorithm=None, candidate_thresholds=None):
+def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorithm=None, candidate_thresholds=None, sampling_rate=None):
     """Optimizes detection threshold using cluster validity metrics.
 
     Uses the Calinski-Harabasz score to evaluate the quality of fixation clusters produced
@@ -131,9 +131,9 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 
     for detect_threshold in candidate_thresholds:
         if algorithm == 'idt':
-            classified_df, _ = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            classified_df, _ = classify_idt(gaze_data.copy(), dispersion_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt, sampling_rate=sampling_rate)
         else:
-            classified_df, _ = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt)
+            classified_df, _ = classify_ivt(gaze_data.copy(), velocity_threshold=detect_threshold, min_fixation_duration=min_fixation_duration, adapt=adapt, sampling_rate=sampling_rate)
 
         fixation_mask = classified_df['event_type'] == 'Fixation'
         fixation_points = classified_df[fixation_mask][['fixation_x', 'fixation_y']].values
@@ -153,7 +153,7 @@ def optimize_threshold(gaze_data, min_fixation_duration=50, adapt=False, algorit
 
 def detect_event(self, min_fixation_duration=50, aois=None,
                             algorithm=None, detect_threshold=150.0, fixation_merge_threshold=None, adapt=False,
-                            tuning_parameter=0.1, optimize=False):
+                            tuning_parameter=0.1, optimize=False, sampling_rate=None):
     """Detects fixation and saccade events in gaze data using specified algorithm.
 
     Processes raw gaze data to identify fixations and saccades, optionally optimizes
@@ -195,13 +195,13 @@ def detect_event(self, min_fixation_duration=50, aois=None,
     if not self.is_valid_data:
         return None, None
     
-    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt, algorithm=algorithm) if optimize else detect_threshold
+    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt, algorithm=algorithm, sampling_rate=sampling_rate) if optimize else detect_threshold
 
     try:
         if algorithm == 'idt':
-            data, actual_thresh = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter, sampling_rate=sampling_rate)
         elif algorithm == 'ivt':
-            data, actual_thresh = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter, sampling_rate=sampling_rate)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
         
@@ -296,7 +296,8 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         detect_threshold=detect_threshold,
         adapt=adapt,
         tuning_parameter=tuning_parameter,
-        optimize=optimize
+        optimize=optimize,
+        sampling_rate=sampling_rate
     )
 
     if event_gaze is not None:

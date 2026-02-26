@@ -62,6 +62,8 @@ def detect_column_mapping(df):
     """Detect which columns contain x, y coordinates and timestamp.
     
     Returns a dict with keys 'x', 'y', 'timestamp' mapping to actual column names.
+    Also detects optional optical-flow columns ('flow_x', 'flow_y') and
+    'video_timestamp' for head-motion compensation.
     """
     mapping = {}
     columns_lower = {col.lower(): col for col in df.columns}
@@ -85,6 +87,26 @@ def detect_column_mapping(df):
     for candidate in y_candidates:
         if candidate in columns_lower:
             mapping['y'] = columns_lower[candidate]
+            break
+    
+    # Detect optical-flow columns (for I-VAT+Frel head-motion compensation)
+    flow_x_candidates = ['flow_x', 'optical_flow_x', 'of_x', 'optic_flow_x']
+    for candidate in flow_x_candidates:
+        if candidate in columns_lower:
+            mapping['flow_x'] = columns_lower[candidate]
+            break
+    
+    flow_y_candidates = ['flow_y', 'optical_flow_y', 'of_y', 'optic_flow_y']
+    for candidate in flow_y_candidates:
+        if candidate in columns_lower:
+            mapping['flow_y'] = columns_lower[candidate]
+            break
+    
+    # Detect video_timestamp column (used for flow velocity calculation)
+    video_ts_candidates = ['video_timestamp', 'video_time', 'frame_timestamp']
+    for candidate in video_ts_candidates:
+        if candidate in columns_lower:
+            mapping['video_timestamp'] = columns_lower[candidate]
             break
     
     return mapping

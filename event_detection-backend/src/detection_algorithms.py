@@ -2,46 +2,79 @@
 import numpy as np
 import pandas as pd
 from .utils import compute_velocity, compute_mad
+from .preprocessing import preprocess_gaze_data
 
 
 def prepare_classification_data(gaze_data: pd.DataFrame, 
                           threshold: float, 
                           adapt: bool = False, 
                           tuning_parameter: float = 0.1, 
-                          is_velocity_based: bool = True) -> tuple:
+                          is_velocity_based: bool = True,
+                          sampling_rate: float = None) -> tuple:
     """Prepares gaze data for fixation classification algorithms.
 
-    Prepares a copy of the gaze data, scales coordinates to pixels, computes velocity,
-    optionally adapts the threshold based on movement patterns, and allocates result arrays.
+    When a *sampling_rate* is provided the enhanced I-VAT+Frel preprocessing
+    pipeline is applied:
+
+    1. **Savitzky-Golay smoothing** – produces ``filter_x`` / ``filter_y``.
+    2. **Gaze velocity** computed on smoothed coordinates using the average
+       time-delta (lower noise than per-sample Δt).
+    3. **Optical-flow compensation** (if ``flow_x`` / ``flow_y`` columns are
+       present in the input) – subtracts background motion to yield
+       ``vel_rel_mag``.
+    4. **Adaptive threshold from flow RMS** (if ``adapt=True`` *and* flow
+       columns are present) – ``threshold_i = base + gain × FlowRMS_i``.
+    5. **MAD-based adaptive threshold** as fallback when no flow columns are
+       available and ``adapt=True``.
+
+    If *sampling_rate* is ``None`` the function falls back to the original
+    point-to-point velocity computation so that existing behaviour is fully
+    preserved.
 
     Args:
-        gaze_data (pd.DataFrame): Input gaze data with required columns:
-            - x (float): X coordinate
-            - y (float): Y coordinate
-            - timestamp (float): Time in milliseconds
-        threshold (float): Initial detection threshold in pixels
-        adapt (bool, optional): Whether to adapt threshold. Defaults to False.
-        tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.
-        is_velocity_based (bool, optional): True for I-VT, False for I-DT. Defaults to True.
+        gaze_data: Input gaze data with ``x``, ``y``, ``timestamp`` columns
+            (and optionally ``flow_x``, ``flow_y``).
+        threshold: Initial detection threshold (px/ms for I-VT, px for I-DT).
+        adapt: Whether to adapt the threshold.
+        tuning_parameter: Strength factor for the MAD-based fallback
+            adaptation (used only when no flow data is available).
+        is_velocity_based: ``True`` for I-VT, ``False`` for I-DT.
+        sampling_rate: Recording sampling rate in Hz.  When provided the
+            enhanced Savgol + flow pipeline is activated.
 
     Returns:
-        tuple: (
-            pd.DataFrame: Copy of input data,
-            np.ndarray: X coordinates array,
-            np.ndarray: Y coordinates array,
-            np.ndarray: Timestamps array,
-            np.ndarray: Event type labels array (initialized as 'Saccade'),
-            np.ndarray: Fixation X coordinates array (initialized as NaN),
-            np.ndarray: Fixation Y coordinates array (initialized as NaN),
-            np.ndarray: Event durations array (initialized as NaN),
-            np.ndarray: Fixation IDs array (initialized as NaN),
-            np.ndarray: Saccade IDs array (initialized as NaN),
-            float: Final threshold after adaptation
-        )
+        A tuple of:
+            - result_data (DataFrame)
+            - x, y, t (ndarrays)
+            - n (int) – number of samples
+            - threshold (float) – possibly adapted global threshold
+            - velocity (ndarray) – per-sample velocity for the legacy
+              windowing loop
+            - event_type, fixation_x, fixation_y, event_duration,
+              fixation_ids, saccade_ids, blink_ids (ndarrays)
+            - preprocess_meta (dict | None) – metadata from the enhanced
+              pipeline (``None`` when *sampling_rate* is not given)
     """
     # Create independent copy of input data
     result_data = gaze_data.copy()
-    
+
+    # ------------------------------------------------------------------
+    # Enhanced I-VAT+Frel preprocessing (when sampling_rate is available)
+    # ------------------------------------------------------------------
+    preprocess_meta = None
+    if sampling_rate is not None and sampling_rate > 0:
+        preprocess_meta = preprocess_gaze_data(
+            result_data,
+            sampling_rate,
+            is_velocity_based=is_velocity_based,
+            base_threshold=threshold,
+            adapt=adapt,
+            # Paper defaults for gain and flow-RMS window
+            gain=1.0,
+            window_size_ms=500.0,
+            savgol_window_ms=55.0,
+        )
+
     # Extract coordinate arrays for efficient processing
     x = result_data['x'].values
     y = result_data['y'].values
@@ -59,21 +92,32 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
 
     # Store initial threshold for potential adaptation
     original_threshold = threshold
-    
-    # Compute point-to-point velocities for threshold adaptation
-    temp_df = pd.DataFrame({'x': x, 'y': y, 'timestamp': t})
-    velocity = compute_velocity(temp_df)
 
-    # Adapt threshold based on movement variability
-    if adapt:
+    # ------------------------------------------------------------------
+    # Build the velocity array used by the windowing loop.
+    # When enhanced preprocessing ran, we use the (possibly flow-relative)
+    # velocity column it computed.  Otherwise fall back to the legacy
+    # point-to-point velocity helper.
+    # ------------------------------------------------------------------
+    if preprocess_meta is not None and is_velocity_based:
+        vel_col = preprocess_meta["vel_col"]  # "vel_rel_mag" or "vel_mag"
+        velocity = result_data[vel_col].fillna(0).values
+    else:
+        temp_df = pd.DataFrame({'x': x, 'y': y, 'timestamp': t})
+        velocity = compute_velocity(temp_df)
+
+    # ------------------------------------------------------------------
+    # Adapt threshold (MAD fallback – only when enhanced pipeline did NOT
+    # already create a per-sample adaptive threshold column).
+    # ------------------------------------------------------------------
+    if adapt and (preprocess_meta is None or not preprocess_meta.get("has_adaptive_threshold", False)):
         if len(velocity) > 0:
             mad_velocity = compute_mad(velocity)
             if mad_velocity > 0:
-                # Scale threshold by movement noise level
                 adaptation_factor = 1 + tuning_parameter * mad_velocity
                 threshold = original_threshold * adaptation_factor
 
-    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids
+    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids, preprocess_meta
 
 
 def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
@@ -169,52 +213,102 @@ def add_saccade_ids(event_type, saccade_ids):
 
 
 
-def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50, adapt=False, tuning_parameter=0.1):
-    """
-    Classifies gaze points into fixations and saccades using the I-DT algorithm.
-    I-DT computes position of points in space and classifies points that are close together (low dispersion) as fixations.
-    Works with variable framerate data without modifying original timestamps.
+def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50,
+                 adapt=False, tuning_parameter=0.1, sampling_rate=None):
+    """Classifies gaze points into fixations and saccades using the I-DT algorithm.
+
+    Enhanced with the I-VAT+Frel pipeline when *sampling_rate* is provided:
+
+    * **Savitzky-Golay smoothing** reduces coordinate noise before dispersion
+      is computed.
+    * **Relative dispersion** (flow-compensated) is used when ``flow_x`` /
+      ``flow_y`` columns are present — this is the *Frel* head-motion
+      compensation from the paper.
+    * **Adaptive threshold from optical-flow RMS** when ``adapt=True`` and
+      flow data is available.
+
+    When no *sampling_rate* is given the function behaves identically to the
+    original implementation.
 
     Args:
-        gaze_data (pd.DataFrame): DataFrame containing gaze data with 'x', 'y', and 'timestamp' columns.
-        dispersion_threshold (float): Maximum allowed dispersion within a fixation window (in pixels).
-        min_fixation_duration (float): Minimum duration (in milliseconds) for a fixation to be considered valid.
-        adapt (bool): Whether to adapt the dispersion threshold based on velocity.
+        gaze_data: DataFrame with ``x``, ``y``, ``timestamp`` columns (and
+            optionally ``flow_x``, ``flow_y``).
+        dispersion_threshold: Maximum dispersion (px) within a fixation window.
+        min_fixation_duration: Minimum fixation duration in ms.
+        adapt: Enable adaptive threshold.
+        tuning_parameter: MAD-based adaptation factor (fallback).
+        sampling_rate: Recording sampling rate in Hz.
 
     Returns:
-        pd.DataFrame: Gaze data with added 'event_type', 'fixation_x', 'fixation_y', and 'event_duration' columns.
+        Tuple of (DataFrame with events, final threshold).
     """
     (result_data, x, y, t, n, dispersion_threshold, velocity,
-     event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids) = \
-        prepare_classification_data(gaze_data, dispersion_threshold, adapt, tuning_parameter, is_velocity_based=False)
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids,
+     saccade_ids, blink_ids, preprocess_meta) = \
+        prepare_classification_data(gaze_data, dispersion_threshold, adapt,
+                                    tuning_parameter, is_velocity_based=False,
+                                    sampling_rate=sampling_rate)
+
+    # -----------------------------------------------------------------
+    # Choose dispersion & coordinate arrays based on preprocessing
+    # -----------------------------------------------------------------
+    if preprocess_meta is not None:
+        disp_col = preprocess_meta["disp_col"]  # "rel_dispersion" or "dispersion"
+        disp_values = result_data[disp_col].fillna(0).values
+        has_adaptive = preprocess_meta["has_adaptive_threshold"]
+        adaptive_thresh = result_data["threshold"].values if has_adaptive else None
+        # Use smoothed coordinates for centroid calculation
+        cx = result_data["filter_x"].values if "filter_x" in result_data.columns else x
+        cy = result_data["filter_y"].values if "filter_y" in result_data.columns else y
+        use_precomputed_disp = True
+    else:
+        use_precomputed_disp = False
+        has_adaptive = False
+        adaptive_thresh = None
+        cx = x
+        cy = y
 
     start_idx = 0
     fixation_id = 1
 
     while start_idx < n:
         current_idx = start_idx
-        max_x = x[start_idx]
-        min_x = x[start_idx]
-        max_y = y[start_idx]
-        min_y = y[start_idx]
 
-        # Expand window for next gaze points until dispersion exceeds threshold
-        while current_idx < n:
-            current_x = x[current_idx]
-            current_y = y[current_idx]
+        if use_precomputed_disp:
+            # -----------------------------------------------------------
+            # Enhanced path: use the pre-computed per-sample dispersion.
+            # A sample belongs to a fixation if its dispersion value is
+            # below the threshold (possibly adaptive per-sample).
+            # -----------------------------------------------------------
+            while current_idx < n:
+                local_thresh = adaptive_thresh[current_idx] if has_adaptive else dispersion_threshold
+                if disp_values[current_idx] > local_thresh:
+                    break
+                current_idx += 1
+        else:
+            # -----------------------------------------------------------
+            # Legacy expanding-window dispersion (original behaviour)
+            # -----------------------------------------------------------
+            max_x = x[start_idx]
+            min_x = x[start_idx]
+            max_y = y[start_idx]
+            min_y = y[start_idx]
 
-            max_x = max(max_x, current_x)
-            min_x = min(min_x, current_x)
-            max_y = max(max_y, current_y)
-            min_y = min(min_y, current_y)
+            while current_idx < n:
+                current_x = x[current_idx]
+                current_y = y[current_idx]
 
-            dispersion = (max_x - min_x) + (max_y - min_y)
+                max_x = max(max_x, current_x)
+                min_x = min(min_x, current_x)
+                max_y = max(max_y, current_y)
+                min_y = min(min_y, current_y)
 
-            if dispersion > dispersion_threshold:
-                break
+                dispersion = (max_x - min_x) + (max_y - min_y)
 
-            # Numer of points in the current window
-            current_idx += 1
+                if dispersion > dispersion_threshold:
+                    break
+
+                current_idx += 1
 
         # Calculate duration of the current window
         end_idx = current_idx - 1 if current_idx > start_idx else start_idx
@@ -222,14 +316,11 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 
         # Check if window meets minimum fixation duration
         if window_duration >= min_fixation_duration:
-            # Mark window points as a fixation event
             event_type[start_idx:end_idx + 1] = 'Fixation'
-            
-            # Calculate centroid of fixation points
-            fix_x = np.mean(x[start_idx:end_idx + 1])
-            fix_y = np.mean(y[start_idx:end_idx + 1])
-            
-            # Record fixation properties for all points in window
+
+            fix_x = np.mean(cx[start_idx:end_idx + 1])
+            fix_y = np.mean(cy[start_idx:end_idx + 1])
+
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
@@ -242,39 +333,57 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
     event_type, blink_ids = detect_blinks(x, y, event_type, blink_ids)
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids), dispersion_threshold
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
+                                     event_duration, fixation_ids, saccade_ids, blink_ids), dispersion_threshold
 
 
 def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
-               adapt=False, tuning_parameter=0.1):
+               adapt=False, tuning_parameter=0.1, sampling_rate=None):
     """Identifies fixations using the I-VT (Velocity Threshold) algorithm.
 
-    Classifies gaze points as fixations when their velocity is below a threshold for a
-    minimum duration. Uses point-to-point velocities and handles variable sampling rates
-    by using actual timestamps. Can adaptively adjust the threshold based on movement patterns.
+    Enhanced with the I-VAT+Frel pipeline when *sampling_rate* is provided:
+
+    * **Savitzky-Golay smoothing** reduces coordinate noise.
+    * **Gaze velocity** is computed on the smoothed coordinates using an
+      average time-delta denominator (lower noise).
+    * **Flow-relative velocity** (``vel_rel_mag``) replaces raw velocity when
+      ``flow_x`` / ``flow_y`` columns are present.  This is the *Frel*
+      head-motion compensation.
+    * **Adaptive threshold from optical-flow RMS** replaces the MAD-based
+      adaptation when flow data is available.
+
+    When no *sampling_rate* is given the function behaves identically to the
+    original implementation.
 
     Args:
-        gaze_data (pd.DataFrame): Input data with required columns:
-            - x (float): X coordinate in pixels
-            - y (float): Y coordinate in pixels
-            - timestamp (float): Time in milliseconds
-        velocity_threshold (float, optional): Max velocity in pixels/ms. Defaults to 150.0.
-        min_fixation_duration (int, optional): Minimum fixation time in ms. Defaults to 50.
-        adapt (bool, optional): Whether to adapt threshold. Defaults to False.
-        tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.
+        gaze_data: DataFrame with ``x``, ``y``, ``timestamp`` columns (and
+            optionally ``flow_x``, ``flow_y``).
+        velocity_threshold: Maximum velocity (px/ms) for fixation.
+        min_fixation_duration: Minimum fixation duration in ms.
+        adapt: Enable adaptive threshold.
+        tuning_parameter: MAD-based adaptation factor (fallback).
+        sampling_rate: Recording sampling rate in Hz.
 
     Returns:
-        pd.DataFrame: Original data with added columns:
-            - event_type (str): 'Fixation' or 'Saccade'
-            - fixation_x (float): X coordinate of fixation center
-            - fixation_y (float): Y coordinate of fixation center
-            - event_duration (float): Duration in milliseconds
-            - fixation_id (int): Unique fixation identifier
-            - saccade_id (int): Unique saccade identifier
+        Tuple of (DataFrame with events, final threshold).
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
-     event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids) = \
-        prepare_classification_data(gaze_data, velocity_threshold, adapt, tuning_parameter, is_velocity_based=True)
+     event_type, fixation_x, fixation_y, event_duration, fixation_ids,
+     saccade_ids, blink_ids, preprocess_meta) = \
+        prepare_classification_data(gaze_data, velocity_threshold, adapt,
+                                    tuning_parameter, is_velocity_based=True,
+                                    sampling_rate=sampling_rate)
+
+    # -----------------------------------------------------------------
+    # Determine whether we have a per-sample adaptive threshold column
+    # -----------------------------------------------------------------
+    has_adaptive = (preprocess_meta is not None
+                    and preprocess_meta.get("has_adaptive_threshold", False))
+    adaptive_thresh = result_data["threshold"].values if has_adaptive else None
+
+    # Use smoothed coordinates for centroid calculation when available
+    cx = result_data["filter_x"].values if "filter_x" in result_data.columns else x
+    cy = result_data["filter_y"].values if "filter_y" in result_data.columns else y
 
     start_idx = 0
     fixation_id = 1
@@ -283,7 +392,8 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
         current_idx = start_idx
         # Find consecutive points with velocity under threshold
         while current_idx < n:
-            if velocity[current_idx] > velocity_threshold:
+            local_thresh = adaptive_thresh[current_idx] if has_adaptive else velocity_threshold
+            if velocity[current_idx] > local_thresh:
                 break
             current_idx += 1
 
@@ -293,14 +403,11 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
 
         # Validate potential fixation duration
         if window_duration >= min_fixation_duration:
-            # Mark points as part of fixation event
             event_type[start_idx:end_idx + 1] = 'Fixation'
 
-            # Compute centroid of fixation points
-            fix_x = np.mean(x[start_idx:end_idx + 1])
-            fix_y = np.mean(y[start_idx:end_idx + 1])
+            fix_x = np.mean(cx[start_idx:end_idx + 1])
+            fix_y = np.mean(cy[start_idx:end_idx + 1])
 
-            # Record fixation properties for all points in window
             fixation_x[start_idx:end_idx + 1] = fix_x
             fixation_y[start_idx:end_idx + 1] = fix_y
             event_duration[start_idx:end_idx + 1] = window_duration
@@ -314,4 +421,5 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
     event_type, blink_ids = detect_blinks(x, y, event_type, blink_ids)
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids), velocity_threshold
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
+                                     event_duration, fixation_ids, saccade_ids, blink_ids), velocity_threshold
