@@ -81,16 +81,16 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     )
 
     # Fixation centers
-    fixations = gaze_data[['fixation_x', 'fixation_y']].drop_duplicates()
+    fixations = gaze_data[['fixation_x', 'fixation_y', 'fixation_id']].drop_duplicates(subset=['fixation_id'])
     fixations = fixations[fixations['fixation_x'].notna() & fixations['fixation_y'].notna()]
-    fixations = fixations.reset_index(drop=True)
+    fixations = fixations.sort_values('fixation_id').reset_index(drop=True)
 
     fixation_scatter = go.Scatter(
         x=fixations['fixation_x'],
         y=fixations['fixation_y'],
         mode='markers+text',
         marker=dict(color='#1a1a1a', size=12, line=dict(color='white', width=2)),
-        text=[str(i + 1) for i in fixations.index],
+        text=[str(int(fid)) for fid in fixations['fixation_id']],
         textposition='top center',
         textfont=dict(size=10, color='#1a1a1a', family='Arial'),
         name='Fixation Points'
