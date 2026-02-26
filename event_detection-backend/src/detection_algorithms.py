@@ -59,10 +59,13 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
     result_data = gaze_data.copy()
 
     # ------------------------------------------------------------------
-    # Enhanced I-VAT+Frel preprocessing (when sampling_rate is available)
+    # Enhanced I-VAT+Frel preprocessing – only activated when optical-flow
+    # columns are present so that non-head-mounted data keeps the exact
+    # same legacy behaviour.
     # ------------------------------------------------------------------
     preprocess_meta = None
-    if sampling_rate is not None and sampling_rate > 0:
+    has_flow = "flow_x" in result_data.columns and "flow_y" in result_data.columns
+    if sampling_rate is not None and sampling_rate > 0 and has_flow:
         preprocess_meta = preprocess_gaze_data(
             result_data,
             sampling_rate,
