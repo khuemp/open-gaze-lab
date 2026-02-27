@@ -51,7 +51,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
             - velocity (ndarray) – per-sample velocity for the legacy
               windowing loop
             - event_type, fixation_x, fixation_y, event_duration,
-              fixation_ids, saccade_ids, blink_ids (ndarrays)
+              fixation_ids, saccade_ids (ndarrays)
             - preprocess_meta (dict | None) – metadata from the enhanced
               pipeline (``None`` when *sampling_rate* is not given)
     """

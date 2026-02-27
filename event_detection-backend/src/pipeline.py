@@ -203,13 +203,13 @@ def detect_event(self, min_fixation_duration=50, aois=None,
         logging.warning("No valid gaze points after filtering. Returning None.")
         return None, None
 
-    best_thresh = optimize_threshold(valid_gaze, adapt=adapt, algorithm=algorithm) if optimize else detect_threshold
+    best_thresh = optimize_threshold(valid_gaze, adapt=adapt, algorithm=algorithm, sampling_rate=sampling_rate) if optimize else detect_threshold
 
     try:
         if algorithm == 'idt':
-            data, actual_thresh = classify_idt(valid_gaze, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_idt(valid_gaze, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter, sampling_rate=sampling_rate)
         elif algorithm == 'ivt':
-            data, actual_thresh = classify_ivt(valid_gaze, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_ivt(valid_gaze, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter, sampling_rate=sampling_rate)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
         
