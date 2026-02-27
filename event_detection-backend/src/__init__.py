@@ -71,19 +71,21 @@ class EventDetection:
             self.gaze_data['x'] *= resolution[0]
             self.gaze_data['y'] *= resolution[1]
 
-        # Convert timestamps to milliseconds if needed
-        first_timestamp = self.gaze_data['timestamp'].iloc[0]
-        ts_conversion_factor = None
-        if first_timestamp > 1000:  # If timestamps are in seconds (either epoch or regular)
-            ts_conversion_factor = 'epoch'
-            self.gaze_data['timestamp'] = (self.gaze_data['timestamp'] - first_timestamp) * 1000
-        elif self.gaze_data['timestamp'].iloc[-1] < 100:  # Small values suggest seconds from start
-            # Convert from seconds to milliseconds
-            ts_conversion_factor = 'seconds'
-            self.gaze_data['timestamp'] = self.gaze_data['timestamp'] * 1000
+        # Store resolution for pipeline use (e.g., out-of-range detection)
+        self.resolution = resolution
 
-        # Apply the same conversion to video_timestamp if present (keeps
-        # units consistent for flow-velocity calculation)
+        # Convert timestamps to milliseconds if needed (interval-based detection)
+        timestamps = self.gaze_data['timestamp']
+        ts_conversion_factor = 'milliseconds'  # Default assumption
+        if len(timestamps) >= 2:
+            median_interval = np.median(np.diff(timestamps.values[:100]))
+            if median_interval > 100:  # Large intervals → epoch timestamps in seconds
+                self.gaze_data['timestamp'] = (timestamps - timestamps.iloc[0]) * 1000
+                ts_conversion_factor = 'epoch'
+            elif median_interval < 0.1:  # Tiny intervals → seconds from start
+                self.gaze_data['timestamp'] = timestamps * 1000
+                ts_conversion_factor = 'seconds'
+            # else: already in milliseconds, no conversion needed
         if 'video_timestamp' in self.gaze_data.columns:
             if ts_conversion_factor == 'epoch':
                 vt_first = self.gaze_data['video_timestamp'].iloc[0]

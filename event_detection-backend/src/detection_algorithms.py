@@ -91,7 +91,6 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
     event_duration = np.full(n, np.nan)                    # Duration of each event
     fixation_ids = np.full(n, np.nan)                      # Unique fixation identifiers
     saccade_ids = np.full(n, np.nan)                       # Unique saccade identifiers
-    blink_ids = np.full(n, np.nan)                         # Unique blink identifiers
 
     # Store initial threshold for potential adaptation
     original_threshold = threshold
@@ -120,22 +119,21 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
                 adaptation_factor = 1 + tuning_parameter * mad_velocity
                 threshold = original_threshold * adaptation_factor
 
-    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, blink_ids, preprocess_meta
+    return result_data, x, y, t, n, threshold, velocity, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids, preprocess_meta
 
 
 def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
-                         event_duration, fixation_ids, saccade_ids, blink_ids):
+                         event_duration, fixation_ids, saccade_ids):
     """Finalizes classification results by adding computed values to the DataFrame.
 
     Args:
         result_data (pd.DataFrame): Original gaze data DataFrame
-        event_type (np.ndarray): Array of event classifications ('Fixation', 'Saccade', or 'Blink')
+        event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
         fixation_x (np.ndarray): X coordinates of fixation centers
         fixation_y (np.ndarray): Y coordinates of fixation centers
         event_duration (np.ndarray): Duration of each event in milliseconds
         fixation_ids (np.ndarray): Unique IDs for fixations
         saccade_ids (np.ndarray): Unique IDs for saccades
-        blink_ids (np.ndarray): Unique IDs for blinks
 
     Returns:
         pd.DataFrame: Input DataFrame with added columns:
@@ -145,7 +143,6 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
             - event_duration (float): Duration in milliseconds
             - fixation_id (int): Unique fixation identifier
             - saccade_id (int): Unique saccade identifier
-            - blink_id (int): Unique blink identifier
     """
     result_data['event_type'] = event_type
     result_data['fixation_x'] = fixation_x
@@ -153,50 +150,14 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
     result_data['event_duration'] = event_duration
     result_data['fixation_id'] = fixation_ids
     result_data['saccade_id'] = saccade_ids
-    result_data['blink_id'] = blink_ids
     return result_data
-
-def detect_blinks(x, y, event_type, blink_ids):
-    """Detects blinks based on missing (NaN) gaze coordinates.
-
-    Identifies consecutive sequences of NaN gaze coordinates and labels them
-    as blink events. This distinguishes blinks from saccades, which should
-    have valid coordinate data.
-
-    Args:
-        x (np.ndarray): X coordinates array
-        y (np.ndarray): Y coordinates array  
-        event_type (np.ndarray): Array of event classifications to update
-        blink_ids (np.ndarray): Array to store blink IDs, initialized with NaN
-
-    Returns:
-        tuple: (event_type, blink_ids) - Updated arrays with blink labels and IDs
-    """
-    blink_id_counter = 1
-    in_blink = False
-    
-    for i in range(len(x)):
-        # Check if gaze coordinates are missing (NaN)
-        is_missing = np.isnan(x[i]) or np.isnan(y[i])
-        
-        if is_missing:
-            event_type[i] = 'Blink'
-            if not in_blink:
-                in_blink = True
-            blink_ids[i] = blink_id_counter
-        elif in_blink:
-            # End of blink sequence
-            in_blink = False
-            blink_id_counter += 1
-    
-    return event_type, blink_ids
 
 
 def add_saccade_ids(event_type, saccade_ids):
     """Assigns unique IDs to consecutive sequences of saccade points.
 
     Args:
-        event_type (np.ndarray): Array of event classifications ('Fixation', 'Saccade', or 'Blink')
+        event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
         saccade_ids (np.ndarray): Array to store saccade IDs, initialized with NaN
 
     Returns:
@@ -247,7 +208,7 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
     """
     (result_data, x, y, t, n, dispersion_threshold, velocity,
      event_type, fixation_x, fixation_y, event_duration, fixation_ids,
-     saccade_ids, blink_ids, preprocess_meta) = \
+     saccade_ids, preprocess_meta) = \
         prepare_classification_data(gaze_data, dispersion_threshold, adapt,
                                     tuning_parameter, is_velocity_based=False,
                                     sampling_rate=sampling_rate)
@@ -340,15 +301,12 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 
         start_idx = end_idx + 1 if current_idx > start_idx else start_idx + 1
 
-    # Detect blinks (NaN gaze coordinates) before assigning saccade IDs
-    event_type, blink_ids = detect_blinks(x, y, event_type, blink_ids)
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
-    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
-                                     event_duration, fixation_ids, saccade_ids, blink_ids), dispersion_threshold
+    return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids), dispersion_threshold
 
 
-def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
+def classify_ivt(gaze_data, velocity_threshold=0.3, min_fixation_duration=50,
                adapt=False, tuning_parameter=0.1, sampling_rate=None):
     """Identifies fixations using the I-VT (Velocity Threshold) algorithm.
 
@@ -380,7 +338,7 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
     """
     (result_data, x, y, t, n, velocity_threshold, velocity,
      event_type, fixation_x, fixation_y, event_duration, fixation_ids,
-     saccade_ids, blink_ids, preprocess_meta) = \
+     saccade_ids, preprocess_meta) = \
         prepare_classification_data(gaze_data, velocity_threshold, adapt,
                                     tuning_parameter, is_velocity_based=True,
                                     sampling_rate=sampling_rate)
@@ -436,9 +394,7 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
         # Advance to next potential fixation window
         start_idx = end_idx + 1
 
-    # Detect blinks (NaN gaze coordinates) before assigning saccade IDs
-    event_type, blink_ids = detect_blinks(x, y, event_type, blink_ids)
     saccade_ids = add_saccade_ids(event_type, saccade_ids)
 
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
-                                     event_duration, fixation_ids, saccade_ids, blink_ids), velocity_threshold
+                                     event_duration, fixation_ids, saccade_ids), velocity_threshold

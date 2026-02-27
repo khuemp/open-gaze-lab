@@ -141,9 +141,9 @@ async def upload_file(
     file: UploadFile = File(...),
     resolution: str = Form("2560,1440"),
     min_fixation_duration: int = Form(50),
-    detect_threshold: float = Form(0.5),
+    detect_threshold: float = Form(125),
     algorithm: str = Form("idt"),
-    sampling_rate: int = Form(1000),
+    sampling_rate: int = Form(250),
     fixation_merge_threshold: Optional[float] = Form(None),
     adapt: bool = Form(False),
     background_image: Optional[UploadFile] = File(None),
@@ -155,7 +155,7 @@ async def upload_file(
     - **file**: CSV file with gaze data
     - **resolution**: Display resolution (e.g., "2560,1440")
     - **min_fixation_duration**: Minimum fixation duration in ms
-    - **detect_threshold**: Detection threshold (0.0-1.0)
+    - **detect_threshold**: Detection threshold in pixels (dispersion for I-DT, velocity for I-VT)
     - **algorithm**: Detection algorithm ('idt' or 'ivt')
     - **sampling_rate**: Sampling rate in Hz
     - **fixation_merge_threshold**: Maximum distance to merge fixations (pixels, optional)
@@ -250,7 +250,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         file_path: Path to uploaded CSV file
         resolution: Tuple of (width, height) display resolution
         min_fixation_duration: Minimum fixation duration in ms
-        detect_threshold: Detection threshold
+        detect_threshold: Detection threshold in pixels
         algorithm: 'idt' or 'ivt'
         sampling_rate: Sampling rate in Hz
         output_name: Output filename prefix
@@ -302,9 +302,13 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     events_output_file = EVENTS_FOLDER / f"{output_name}_events.csv"
     detector.event_data_df.to_csv(events_output_file, index=False)
     
-    # Create standard visualization using EyeTrackingVisualizer class
+    # Create standard visualization using EyeTrackingVisualizer class (valid data only)
+    valid_event_data = detector.event_data_df[
+        ~detector.event_data_df['event_type'].isin(['NaN', 'Out of Range Gaze Points'])
+    ].copy()
+    
     plot_file = VISUALIZATION_FOLDER / f"{output_name}_visualization.html"
-    visualizer = EyeTrackingVisualizer(detector.event_data_df, resolution=resolution)
+    visualizer = EyeTrackingVisualizer(valid_event_data, resolution=resolution)
     visualizer.plot_gaze_points_and_fixations(
         str(plot_file),
         bg_image_path=bg_image_path,
@@ -332,7 +336,8 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         'num_fixations': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Fixation']),
         'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade']),
         'num_fixation_points': detector.event_data_df['fixation_id'].dropna().nunique(),
-        'num_blinks': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Blink']),
+        'num_oor_gaze_points': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Out of Range Gaze Points']),
+        'num_nan_gaze_points': len(detector.event_data_df[detector.event_data_df['event_type'] == 'NaN']),
         'best_threshold': detector.best_threshold if hasattr(detector, 'best_threshold') else None
     }
 

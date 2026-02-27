@@ -56,7 +56,7 @@ function App() {
     const [file, setFile] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [resolution, setResolution] = useState('2560,1440');
-    const [minFixationDuration, setMinFixationDuration] = useState('100');
+    const [minFixationDuration, setMinFixationDuration] = useState('50');
     const [detectThreshold, setDetectThreshold] = useState('125');
     const [algorithm, setAlgorithm] = useState('idt');
     const [samplingRate, setSamplingRate] = useState('250');
@@ -466,9 +466,16 @@ function ResultsDisplay({ results }) {
                 </div>
 
                 <div className="result-card">
-                    <p className="result-label">Gaze Points As Blink</p>
+                    <p className="result-label">Gaze Points Out Of Range</p>
                     <p className="result-value">
-                        {results.result?.num_blinks || 0}
+                        {results.result?.num_oor_gaze_points || 0}
+                    </p>
+                </div>
+
+                <div className="result-card">
+                    <p className="result-label">Gaze Points As NaN</p>
+                    <p className="result-value">
+                        {results.result?.num_nan_gaze_points || 0}
                     </p>
                 </div>
 
