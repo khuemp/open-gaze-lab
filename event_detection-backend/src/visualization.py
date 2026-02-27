@@ -67,7 +67,6 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     color_map = {
         'Fixation': 'rgba(34, 139, 34, 0.6)',
         'Saccade': 'rgba(100, 100, 100, 0.4)',
-        'Blink': 'rgba(120, 120, 120, 0.4)'
     }
     colors = [color_map.get(e, color_map['Saccade']) for e in gaze_data['event_type']]
 
@@ -293,8 +292,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     
     # Professional minimalist color palette
     color_map = {'Fixation': 'rgba(34, 139, 34, 0.6)',    # Forest green for fixations
-                 'Saccade': 'rgba(70, 70, 70, 0.4)',       # Dark gray for saccades
-                 'Blink': 'rgba(100, 100, 100, 0.4)'}      # Medium gray for blinks
+                 'Saccade': 'rgba(70, 70, 70, 0.4)'}       # Dark gray for saccades
     
     # Get time range
     min_time = gaze_data['timestamp'].min()

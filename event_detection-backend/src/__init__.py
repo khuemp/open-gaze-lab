@@ -63,6 +63,9 @@ class EventDetection:
             self.gaze_data['x'] *= resolution[0]
             self.gaze_data['y'] *= resolution[1]
 
+        # Store resolution for pipeline use (e.g., out-of-range detection)
+        self.resolution = resolution
+
         # Convert timestamps to milliseconds if needed
         first_timestamp = self.gaze_data['timestamp'].iloc[0]
         if first_timestamp > 1000:  # If timestamps are in seconds (either epoch or regular)

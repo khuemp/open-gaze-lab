@@ -1,5 +1,85 @@
 import numpy as np
 import pandas as pd
+import logging
+
+def separate_invalid_points(df, resolution):
+    """Separates invalid gaze points (NaN and out-of-range) from valid ones.
+
+    Identifies rows where gaze coordinates are NaN or fall outside the screen
+    resolution bounds, and splits the DataFrame into valid and invalid subsets.
+
+    Args:
+        df (pd.DataFrame): Gaze data with 'x' and 'y' columns in pixel coordinates.
+        resolution (tuple): Screen resolution as (width, height) in pixels.
+
+    Returns:
+        tuple: (
+            pd.DataFrame: Valid gaze points with original index preserved,
+            pd.Series: Boolean mask of invalid rows (True = invalid),
+            pd.Series: Reason strings for invalid rows ('NaN' or 'Out of Range Gaze Points'),
+                       NaN for valid rows
+        )
+    """
+    res_w, res_h = resolution
+
+    is_nan = df['x'].isna() | df['y'].isna()
+    is_oor = (
+        (df['x'] < 0) | (df['x'] > res_w) |
+        (df['y'] < 0) | (df['y'] > res_h)
+    ) & ~is_nan  # OOR only for non-NaN rows
+
+    invalid_mask = is_nan | is_oor
+
+    reasons = pd.Series(np.nan, index=df.index, dtype=object)
+    reasons[is_nan] = 'NaN'
+    reasons[is_oor] = 'Out of Range Gaze Points'
+
+    valid_df = df[~invalid_mask].copy()
+
+    n_nan = is_nan.sum()
+    n_oor = is_oor.sum()
+    if n_nan > 0 or n_oor > 0:
+        logging.info(f"Separated {n_nan} NaN and {n_oor} out-of-range gaze points from {len(df)} total rows")
+
+    return valid_df, invalid_mask, reasons
+
+
+def reinsert_invalid_points(valid_df, original_length, invalid_mask, reasons):
+    """Reinserts invalid gaze points back into the processed DataFrame at original positions.
+
+    Takes the detection results from valid-only data and merges them back with the
+    invalid rows, restoring the original row count and order. Invalid rows receive
+    their corresponding event_type label ('NaN' or 'Out of Range Gaze Points').
+
+    Args:
+        valid_df (pd.DataFrame): Processed detection results for valid gaze points.
+        original_length (int): Total number of rows in the original input.
+        invalid_mask (pd.Series): Boolean mask where True indicates invalid rows.
+        reasons (pd.Series): Event type labels for invalid rows.
+
+    Returns:
+        pd.DataFrame: Full-length DataFrame with all rows restored, invalid rows
+            having event_type set to their reason and other detection columns as NaN.
+    """
+    # Build a full-length DataFrame
+    full_df = pd.DataFrame(index=range(original_length), columns=valid_df.columns)
+
+    # Place valid results at their original positions
+    valid_indices = invalid_mask[~invalid_mask].index
+    full_df.loc[valid_indices] = valid_df.values
+
+    # Fill invalid rows with their reason as event_type
+    invalid_indices = invalid_mask[invalid_mask].index
+    full_df.loc[invalid_indices, 'event_type'] = reasons[invalid_indices].values
+
+    # Preserve numeric dtypes where possible
+    for col in valid_df.columns:
+        if col == 'event_type':
+            continue
+        full_df[col] = pd.to_numeric(full_df[col], errors='coerce')
+
+    return full_df
+
 
 def correct_timestamps(df, sampling_rate):
     """Corrects timestamps to uniform intervals based on sampling rate.
@@ -51,7 +131,6 @@ def compute_velocity(df):
 
     Notes:
         - NaN values in x/y coordinates propagate to NaN velocities
-        - This allows tracking of blinks and missing data locations
         - Enforces minimum time interval of 0.033ms (30fps) to prevent division by zero
         - Returns array of zeros if fewer than 2 points
     """
@@ -108,12 +187,11 @@ def clean_fixations(events_df):
 
     Args:
         events_df (pd.DataFrame): Event data with columns:
-            - event_type (str): 'Fixation', 'Saccade', or 'Blink'
+            - event_type (str): 'Fixation', 'Saccade', 'NaN', or 'Out of Range Gaze Points'
             - timestamp (float): Time in milliseconds
             - fixation_x (float): X coordinate of fixation center
             - fixation_y (float): Y coordinate of fixation center
             - fixation_id (int): Unique fixation identifier
-            - blink_id (int): Unique blink identifier (optional)
 
     Returns:
         pd.DataFrame: Cleaned data with added/corrected columns:
@@ -158,21 +236,6 @@ def clean_fixations(events_df):
         events_df.loc[sac_mask, 'end_time'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['end_time'])
         events_df.loc[sac_mask, 'event_duration'] = events_df.loc[sac_mask, 'saccade_id'].map(sac_bounds['event_duration'])
 
-    # Calculate and map blink bounds
-    if 'blink_id' in events_df.columns:
-        blink_mask = events_df['blink_id'].notna()
-        if blink_mask.any():
-            blink_bounds = (
-                events_df[blink_mask]
-                .groupby('blink_id', dropna=False)['timestamp']
-                .agg(start_time='min', end_time='max')
-            )
-            blink_bounds['event_duration'] = blink_bounds['end_time'] - blink_bounds['start_time']
-
-            events_df.loc[blink_mask, 'start_time'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['start_time'])
-            events_df.loc[blink_mask, 'end_time'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['end_time'])
-            events_df.loc[blink_mask, 'event_duration'] = events_df.loc[blink_mask, 'blink_id'].map(blink_bounds['event_duration'])
-    
     events_df = events_df.sort_values(['timestamp']).reset_index(drop=True)
     return events_df
 

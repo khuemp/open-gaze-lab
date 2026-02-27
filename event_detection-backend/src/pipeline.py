@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import logging
 from sklearn.metrics import calinski_harabasz_score
-from .utils import clean_fixations, merge_fixations, merge_saccades, correct_timestamps
+from .utils import clean_fixations, merge_fixations, merge_saccades, correct_timestamps, separate_invalid_points, reinsert_invalid_points
 from .detection_algorithms import classify_idt, classify_ivt
 
 
@@ -195,13 +195,21 @@ def detect_event(self, min_fixation_duration=50, aois=None,
     if not self.is_valid_data:
         return None, None
     
-    best_thresh = optimize_threshold(self.gaze_data, adapt=adapt, algorithm=algorithm) if optimize else detect_threshold
+    # Separate invalid (NaN / out-of-range) gaze points before detection
+    valid_gaze, invalid_mask, invalid_reasons = separate_invalid_points(self.gaze_data, self.resolution)
+    original_length = len(self.gaze_data)
+
+    if len(valid_gaze) == 0:
+        logging.warning("No valid gaze points after filtering. Returning None.")
+        return None, None
+
+    best_thresh = optimize_threshold(valid_gaze, adapt=adapt, algorithm=algorithm) if optimize else detect_threshold
 
     try:
         if algorithm == 'idt':
-            data, actual_thresh = classify_idt(self.gaze_data, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_idt(valid_gaze, dispersion_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         elif algorithm == 'ivt':
-            data, actual_thresh = classify_ivt(self.gaze_data, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
+            data, actual_thresh = classify_ivt(valid_gaze, velocity_threshold=best_thresh, min_fixation_duration=min_fixation_duration, adapt=adapt, tuning_parameter=tuning_parameter)
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
         
@@ -212,6 +220,15 @@ def detect_event(self, min_fixation_duration=50, aois=None,
             data = merge_fixations(data, fixation_merge_threshold=fixation_merge_threshold)
         
         data = merge_saccades(data)
+
+        # Reinsert invalid points at their original positions
+        data = reinsert_invalid_points(data, original_length, invalid_mask, invalid_reasons)
+
+        # Restore original x, y, timestamp columns for invalid rows from the original data
+        invalid_indices = invalid_mask[invalid_mask].index
+        for col in ['x', 'y', 'timestamp']:
+            if col in self.gaze_data.columns:
+                data.loc[invalid_indices, col] = self.gaze_data.loc[invalid_indices, col].values
 
         if aois is not None:
             data = classify_aoi(self, data, aois)
