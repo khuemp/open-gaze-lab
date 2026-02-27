@@ -66,13 +66,15 @@ class EventDetection:
         # Store resolution for pipeline use (e.g., out-of-range detection)
         self.resolution = resolution
 
-        # Convert timestamps to milliseconds if needed
-        first_timestamp = self.gaze_data['timestamp'].iloc[0]
-        if first_timestamp > 1000:  # If timestamps are in seconds (either epoch or regular)
-            self.gaze_data['timestamp'] = (self.gaze_data['timestamp'] - first_timestamp) * 1000
-        elif self.gaze_data['timestamp'].iloc[-1] < 100:  # Small values suggest seconds from start
-            # Convert from seconds to milliseconds
-            self.gaze_data['timestamp'] = self.gaze_data['timestamp'] * 1000
+        # Convert timestamps to milliseconds if needed (interval-based detection)
+        timestamps = self.gaze_data['timestamp']
+        if len(timestamps) >= 2:
+            median_interval = np.median(np.diff(timestamps.values[:100]))
+            if median_interval > 100:  # Large intervals → epoch timestamps in seconds
+                self.gaze_data['timestamp'] = (timestamps - timestamps.iloc[0]) * 1000
+            elif median_interval < 0.1:  # Tiny intervals → seconds from start
+                self.gaze_data['timestamp'] = timestamps * 1000
+            # else: already in milliseconds, no conversion needed
         
         # Initialize logging with timestamp and level information
         logging.basicConfig(

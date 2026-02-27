@@ -204,7 +204,7 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
     return finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y, event_duration, fixation_ids, saccade_ids), dispersion_threshold
 
 
-def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
+def classify_ivt(gaze_data, velocity_threshold=0.3, min_fixation_duration=50,
                adapt=False, tuning_parameter=0.1):
     """Identifies fixations using the I-VT (Velocity Threshold) algorithm.
 
@@ -217,7 +217,7 @@ def classify_ivt(gaze_data, velocity_threshold=150.0, min_fixation_duration=50,
             - x (float): X coordinate in pixels
             - y (float): Y coordinate in pixels
             - timestamp (float): Time in milliseconds
-        velocity_threshold (float, optional): Max velocity in pixels/ms. Defaults to 150.0.
+        velocity_threshold (float, optional): Max velocity in pixels/ms. Defaults to 0.3.
         min_fixation_duration (int, optional): Minimum fixation time in ms. Defaults to 50.
         adapt (bool, optional): Whether to adapt threshold. Defaults to False.
         tuning_parameter (float, optional): Adaptation strength factor. Defaults to 0.1.

@@ -119,9 +119,9 @@ async def upload_file(
     file: UploadFile = File(...),
     resolution: str = Form("2560,1440"),
     min_fixation_duration: int = Form(50),
-    detect_threshold: float = Form(0.5),
+    detect_threshold: float = Form(125),
     algorithm: str = Form("idt"),
-    sampling_rate: int = Form(1000),
+    sampling_rate: int = Form(250),
     fixation_merge_threshold: Optional[float] = Form(None),
     adapt: bool = Form(False),
     background_image: Optional[UploadFile] = File(None),
@@ -133,7 +133,7 @@ async def upload_file(
     - **file**: CSV file with gaze data
     - **resolution**: Display resolution (e.g., "2560,1440")
     - **min_fixation_duration**: Minimum fixation duration in ms
-    - **detect_threshold**: Detection threshold (0.0-1.0)
+    - **detect_threshold**: Detection threshold in pixels (dispersion for I-DT, velocity for I-VT)
     - **algorithm**: Detection algorithm ('idt' or 'ivt')
     - **sampling_rate**: Sampling rate in Hz
     - **fixation_merge_threshold**: Maximum distance to merge fixations (pixels, optional)
@@ -228,7 +228,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         file_path: Path to uploaded CSV file
         resolution: Tuple of (width, height) display resolution
         min_fixation_duration: Minimum fixation duration in ms
-        detect_threshold: Detection threshold
+        detect_threshold: Detection threshold in pixels
         algorithm: 'idt' or 'ivt'
         sampling_rate: Sampling rate in Hz
         output_name: Output filename prefix

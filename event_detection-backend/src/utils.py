@@ -131,7 +131,7 @@ def compute_velocity(df):
 
     Notes:
         - NaN values in x/y coordinates propagate to NaN velocities
-        - Enforces minimum time interval of 0.033ms (30fps) to prevent division by zero
+        - Enforces minimum time interval of ~33.3ms (30fps) to prevent division by zero
         - Returns array of zeros if fewer than 2 points
     """
     if len(df) < 2:
@@ -143,7 +143,7 @@ def compute_velocity(df):
     dt = df['timestamp'].diff().values[1:]
     
     # Handle zero or negative time intervals (but preserve NaN)
-    min_dt = 0.033  # 30fps as minimum reasonable interval
+    min_dt = 1000.0 / 30  # ~33.3ms, 30fps as minimum reasonable interval
     dt = np.where((dt > 0) | np.isnan(dt), dt, min_dt)
     
     # Calculate velocity - NaN in dx/dy will produce NaN velocity
