@@ -4,6 +4,7 @@ __pycache__/
 # Data files
 data_example/
 data/
+dataset/
 
 # Dependencies
 node_modules/
