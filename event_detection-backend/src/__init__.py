@@ -3,7 +3,8 @@ from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
 from .preprocessing import *
-from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling
+from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling, generate_video_gaze_visualization
+from .dataset_loader import load_npy_dataset, load_npy_dataset_from_dir, extract_video_metadata
 
 class EventDetection:
     """
@@ -129,4 +130,4 @@ class EyeTrackingVisualizer:
         self.plot_gaze_points_and_fixations = plot_gaze_points_and_fixations.__get__(self)
         self.plot_gaze_with_time_scrolling = plot_gaze_with_time_scrolling.__get__(self)
 
-__all__ = ["EventDetection", "EyeTrackingVisualizer"]
+__all__ = ["EventDetection", "EyeTrackingVisualizer", "load_npy_dataset", "load_npy_dataset_from_dir", "extract_video_metadata", "generate_video_gaze_visualization"]
