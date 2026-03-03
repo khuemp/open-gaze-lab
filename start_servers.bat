@@ -3,7 +3,7 @@ REM Start both backend and frontend servers
 
 echo.
 echo ============================================
-echo Eye-tracking Event Detection - Web App
+echo GazeInteract - Web App
 echo ============================================
 echo.
 

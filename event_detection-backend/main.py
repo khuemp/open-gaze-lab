@@ -402,7 +402,7 @@ async def upload_video_dataset(
     resolution: str = Form("1088,1080"),
     min_fixation_duration: int = Form(50),
     detect_threshold: float = Form(1.0),
-    sampling_rate: int = Form(200),
+    sampling_rate: int = Form(248),
     adapt: bool = Form(True),
 ):
     """

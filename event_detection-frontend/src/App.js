@@ -74,7 +74,7 @@ function App() {
     const [hmResolution, setHmResolution] = useState('1088,1080');
     const [hmMinFixation, setHmMinFixation] = useState('50');
     const [hmThreshold, setHmThreshold] = useState('1.0');
-    const [hmSamplingRate, setHmSamplingRate] = useState('200');
+    const [hmSamplingRate, setHmSamplingRate] = useState('248');
     const [hmAdapt, setHmAdapt] = useState(true);
 
     // Shared state
