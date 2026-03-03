@@ -2,7 +2,9 @@
 from .pipeline import *
 from .detection_algorithms import *
 from .utils import *
-from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling
+from .preprocessing import *
+from .visualization import plot_gaze_points_and_fixations, plot_gaze_with_time_scrolling, generate_video_gaze_visualization
+from .dataset_loader import load_npy_dataset, load_npy_dataset_from_dir, extract_video_metadata
 
 class EventDetection:
     """
@@ -42,6 +44,13 @@ class EventDetection:
             rename_map[column_mapping['y']] = 'y'
         if column_mapping.get('timestamp') != 'timestamp' and column_mapping.get('timestamp') in self.gaze_data.columns:
             rename_map[column_mapping['timestamp']] = 'timestamp'
+        # Rename optional optical-flow / video_timestamp columns
+        if column_mapping.get('flow_x') and column_mapping['flow_x'] != 'flow_x' and column_mapping['flow_x'] in self.gaze_data.columns:
+            rename_map[column_mapping['flow_x']] = 'flow_x'
+        if column_mapping.get('flow_y') and column_mapping['flow_y'] != 'flow_y' and column_mapping['flow_y'] in self.gaze_data.columns:
+            rename_map[column_mapping['flow_y']] = 'flow_y'
+        if column_mapping.get('video_timestamp') and column_mapping['video_timestamp'] != 'video_timestamp' and column_mapping['video_timestamp'] in self.gaze_data.columns:
+            rename_map[column_mapping['video_timestamp']] = 'video_timestamp'
         
         if rename_map:
             self.gaze_data = self.gaze_data.rename(columns=rename_map)
@@ -68,13 +77,22 @@ class EventDetection:
 
         # Convert timestamps to milliseconds if needed (interval-based detection)
         timestamps = self.gaze_data['timestamp']
+        ts_conversion_factor = 'milliseconds'  # Default assumption
         if len(timestamps) >= 2:
             median_interval = np.median(np.diff(timestamps.values[:100]))
             if median_interval > 100:  # Large intervals → epoch timestamps in seconds
                 self.gaze_data['timestamp'] = (timestamps - timestamps.iloc[0]) * 1000
+                ts_conversion_factor = 'epoch'
             elif median_interval < 0.1:  # Tiny intervals → seconds from start
                 self.gaze_data['timestamp'] = timestamps * 1000
+                ts_conversion_factor = 'seconds'
             # else: already in milliseconds, no conversion needed
+        if 'video_timestamp' in self.gaze_data.columns:
+            if ts_conversion_factor == 'epoch':
+                vt_first = self.gaze_data['video_timestamp'].iloc[0]
+                self.gaze_data['video_timestamp'] = (self.gaze_data['video_timestamp'] - vt_first) * 1000
+            elif ts_conversion_factor == 'seconds':
+                self.gaze_data['video_timestamp'] = self.gaze_data['video_timestamp'] * 1000
         
         # Initialize logging with timestamp and level information
         logging.basicConfig(
@@ -112,4 +130,4 @@ class EyeTrackingVisualizer:
         self.plot_gaze_points_and_fixations = plot_gaze_points_and_fixations.__get__(self)
         self.plot_gaze_with_time_scrolling = plot_gaze_with_time_scrolling.__get__(self)
 
-__all__ = ["EventDetection", "EyeTrackingVisualizer"]
+__all__ = ["EventDetection", "EyeTrackingVisualizer", "load_npy_dataset", "load_npy_dataset_from_dir", "extract_video_metadata", "generate_video_gaze_visualization"]

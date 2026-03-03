@@ -1,6 +1,6 @@
 # Eye-tracking Event Detection Toolkit
 
-A web-based application for processing eye-tracking gaze data to detect and classify **fixations**, **saccades**, and **blinks**. Provides both a Python processing pipeline and a modern web interface for researchers working with eye-tracking data.
+A web-based application for processing eye-tracking gaze data to detect and classify **fixations**, **saccades**, and **blinks**. Supports both **static (screen-based) eye trackers** and **head-mounted eye trackers** (e.g. Pupil Invisible). Provides a Python processing pipeline and a modern web interface for researchers working with eye-tracking data.
 
 > **Note**: Requires Python 3.11 or below.
 
@@ -8,32 +8,46 @@ A web-based application for processing eye-tracking gaze data to detect and clas
 
 ## Features
 
+### Two Operating Modes
+
+| | Static Eye Tracker | Head-Mounted Eye Tracker |
+|---|---|---|
+| **Input** | CSV gaze file | ZIP of `.npy` files + MP4 video |
+| **Algorithms** | I-DT, I-VT | I-VT with flow compensation (I-VAT+Frel) |
+| **Flow compensation** | — | Optical flow removes head motion from gaze velocity |
+| **Adaptive threshold** | MAD-based | Flow-RMS-based |
+| **Visualization** | Static plot, time-scrolling plot | Video overlay with gaze + events |
+
 ### Data Processing
-- **Automatic delimiter detection**: Supports `;`, `,`, `\t`, `|`, and space
-- **Automatic column mapping**: Detects x/y/timestamp column names automatically
+- **Automatic delimiter detection** (static mode): Supports `;`, `,`, `\t`, `|`, and space
+- **Automatic column mapping** (static mode): Detects x/y/timestamp column names automatically
 - **Coordinate normalization detection**: Auto-detects normalized (0-1) vs pixel coordinates
 - **Timestamp correction**: Regularizes irregular timestamps to uniform intervals
 - **Blink detection**: Identifies NaN/missing gaze data as blinks
 - **Fixation merging**: Combines spatially close consecutive fixations using duration-weighted averaging
+- **Optical flow integration** (head-mounted mode): Compensates for head/camera motion using per-frame optical flow grids
 
 ### Detection Algorithms
-- **I-DT (Dispersion-Threshold)**: Classifies fixations based on spatial dispersion
+- **I-DT (Dispersion-Threshold)**: Classifies fixations based on spatial dispersion (static mode)
 - **I-VT (Velocity-Threshold)**: Classifies fixations based on point-to-point velocity
-- **Adaptive thresholding**: Adjusts threshold based on movement variability (MAD)
+- **I-VAT+Frel** (head-mounted mode): Enhanced I-VT that subtracts camera flow velocity from gaze velocity to isolate true eye movements. Uses Savitzky-Golay smoothing, relative velocity computation, and flow-RMS adaptive thresholding
+- **Adaptive thresholding**: MAD-based (static) or flow-RMS-based (head-mounted)
 - **Threshold optimization**: Uses Calinski-Harabasz score for automatic parameter tuning
 
 ### Visualization
 - **Static visualization**: Interactive Plotly plot with gaze points, fixations, and scanpath
 - **Time-scrolling visualization**: Animated playback with play/pause controls and time slider
+- **Video overlay visualization** (head-mounted mode): Gaze events overlaid on scene camera video with playback controls, optical flow vectors, and optional ground truth comparison
 - **AOI overlay**: Display Areas of Interest on visualizations
-- **Background image support**: Overlay stimulus screen image behind gaze plots
+- **Background image support**: Overlay stimulus screen image behind gaze plots (static mode)
 
 ### Web Interface
-- **Drag-and-drop upload**: Easy CSV and background image selection
-- **Parameter configuration**: Full control over detection parameters
-- **Real-time results**: Statistics display (fixations, saccades, blinks counts)
+- **Mode toggle**: Switch between Static Eye Tracker and Head-Mounted Eye Tracker
+- **Drag-and-drop upload**: Easy file selection for CSV, ZIP, video, and images
+- **Parameter configuration**: Full control over detection parameters per mode
+- **Real-time results**: Statistics display (fixations, saccades, blinks, F1 scores)
 - **CSV export**: Download processed event data
-- **Embedded visualizations**: View plots directly in browser
+- **Embedded visualizations**: View plots and video overlays directly in browser
 
 ---
 
@@ -41,7 +55,10 @@ A web-based application for processing eye-tracking gaze data to detect and clas
 
 ### Installation
 ```bash
+cd event_detection-backend
 pip install -r requirements.txt
+
+cd event_detection-frontend
 npm install
 ```
 
@@ -69,24 +86,26 @@ Frontend opens at: `http://localhost:8000`
 ## Project Structure
 
 ```
-fixation_detection/
+event_detection/
 ├── start_servers.bat              # Windows startup script
 ├── README.md                      # This file
-├── GUIDE.md                       # Quick start guide
 │
 ├── event_detection-backend/       # Python FastAPI backend
-│   ├── main.py                    # API server
+│   ├── main.py                    # API server (static + head-mounted endpoints)
 │   ├── requirements.txt           # Python dependencies
 │   ├── src/
 │   │   ├── __init__.py            # EventDetection & EyeTrackingVisualizer classes
-│   │   ├── detection_algorithms.py # I-DT and I-VT implementations
+│   │   ├── detection_algorithms.py # I-DT, I-VT implementations
 │   │   ├── pipeline.py            # Event detection pipeline
+│   │   ├── preprocessing.py       # I-VAT+Frel pipeline (savgol, flow, adaptive)
 │   │   ├── visualization.py       # Plotly visualizations
+│   │   ├── dataset_loader.py      # .npy ZIP loader for head-mounted data
 │   │   ├── utils.py               # Velocity, MAD, merging utilities
 │   │   └── aoi.py                 # AOI classification
 │   └── data/
 │       ├── uploads/               # Uploaded CSV files
 │       ├── images/                # Uploaded background images
+│       ├── videos/                # Uploaded scene camera videos
 │       ├── events/                # Processed event CSVs
 │       └── visualization/         # HTML visualizations
 │
@@ -94,32 +113,35 @@ fixation_detection/
     ├── index.html
     ├── package.json
     └── src/
-        ├── App.js                 # Main React application
+        ├── App.js                 # Main React application (both modes)
         ├── App.css                # Component styles
         └── index.css              # Global styles
 ```
 
 ---
 
-## Usage
+## Usage — Static Eye Tracker Mode
+
+For screen-based / desktop eye trackers that produce CSV gaze data.
 
 ### Step 1: Upload CSV
-Click or drag-and-drop your gaze data CSV file into the upload area.
+Select the **Static Eye Tracker** tab. Click or drag-and-drop your gaze data CSV file into the upload area.
 
 ### Step 1b: Upload Background Image (Optional)
-Optionally upload a screenshot or stimulus image (PNG, JPG, BMP, GIF, WebP) to display behind the gaze plots. The image is mapped to the full display resolution so gaze positions align with on-screen content. When a background image is present, the plot grid is hidden and the background is made transparent for a cleaner overlay.
+Optionally upload a screenshot or stimulus image (PNG, JPG, BMP, GIF, WebP) to display behind the gaze plots. The image is mapped to the full display resolution so gaze positions align with on-screen content.
 
 ### Step 2: Configure Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| **Display Resolution** | 2560,1440 | Screen resolution in pixels (wI-DTh,height) |
-| **Minimal Fixation Duration** | 100 ms | Minimum duration for valid fixation |
-| **Detection Threshold** | 125 | For I-DT: dispersion in pixels. For I-VT: velocity in pixels/ms |
 | **Algorithm** | I-DT | Detection algorithm: `I-DT` or `I-VT` |
+| **Plot Origin** | Top-Left | Coordinate origin for visualization |
+| **Display Resolution** | 2560,1440 | Screen resolution in pixels (width,height) |
 | **Sampling Rate** | 250 Hz | Eye-tracker sampling rate |
+| **Minimal Fixation Duration** | 50 ms | Minimum duration for valid fixation |
+| **Detection Threshold** | 125 | For I-DT: dispersion in pixels. For I-VT: velocity in pixels/ms |
 | **Merge Threshold** | None | Max distance (px) to merge nearby fixations |
-| **Adaptive Threshold** | Off | Enable adaptive threshold adjustment |
+| **Adaptive Threshold** | Off | Enable MAD-based adaptive threshold adjustment |
 
 ### Step 3: Process
 Click **"Process Gaze Data"** and wait for processing.
@@ -132,32 +154,98 @@ Click **"Process Gaze Data"** and wait for processing.
 
 ---
 
+## Usage — Head-Mounted Eye Tracker Mode
+
+For head-mounted eye trackers (e.g. Pupil Invisible) that produce `.npy` gaze data with optical flow and scene camera video.
+
+### Step 1: Upload Dataset ZIP + Video
+Select the **Head-Mounted Eye Tracker** tab. Upload two files:
+
+1. **Dataset ZIP** — A `.zip` archive containing the required `.npy` files (see table below)
+2. **Scene Camera Video** — An `.mp4` video recorded from the head-mounted camera
+
+#### Required `.npy` Files in the ZIP
+
+| File | Shape | Description |
+|------|-------|-------------|
+| `gaze.npy` | (N, 2) | Eye gaze position x, y in pixels |
+| `time_gaze.npy` | (N,) | Gaze timestamps in seconds |
+| `optic_flow.npy` | (M, 11, 11, 2) | Per-frame 11×11 optical flow grid |
+| `time_optic_flow.npy` | (M,) | Optical flow frame timestamps in seconds |
+| `time_scene_camera.npy` | (M,) | Scene camera frame timestamps in seconds |
+
+#### Optional `.npy` Files
+
+| File | Shape | Description |
+|------|-------|-------------|
+| `gt_labels.npy` | (N,) | Ground truth labels (1 = Fixation, 0 = Saccade). When present, F1 scores are computed automatically. |
+
+The `.npy` files can be placed at the ZIP root or inside a single subfolder. Maximum ZIP size: 100 MB. Maximum video size: 500 MB.
+
+### Step 2: Configure Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **Video Resolution** | 1088,1080 | Scene camera resolution (width,height) |
+| **Sampling Rate** | 200 Hz | Gaze sampling rate |
+| **Min Fixation Duration** | 50 ms | Minimum duration for valid fixation |
+| **Detection Threshold** | 1.0 | I-VT velocity threshold (px/ms) |
+| **Adaptive Threshold** | On | Enable flow-RMS-based adaptive thresholding |
+
+### Step 3: Process
+Click **"Process Video Data"** and wait for processing.
+
+### Step 4: View Results
+- **Statistics**: Fixation points, saccade points, duration, video resolution, FPS
+- **F1 Scores**: Fixation and saccade F1 scores (when ground truth labels are provided)
+- **Download CSV**: Get processed event data
+- **Video Visualization**: Interactive video with gaze overlay, event markers, and optical flow vectors
+
+---
+
 ## Detection Algorithms Explained
 
 ### I-DT (Dispersion-Threshold Identification)
 Classifies gaze points as fixations when **spatial dispersion** within a temporal window is below a threshold.
 
 - **Dispersion formula**: `(max_x - min_x) + (max_y - min_y)` in pixels
-- **Best for**: Low sampling rate data, noisy data
-- **Typical threshold**: 100-200 pixels
+- **Best for**: Low sampling rate data, noisy data, static eye trackers
+- **Typical threshold**: 100–200 pixels
 
 ### I-VT (Velocity-Threshold Identification)
 Classifies gaze points as fixations when **point-to-point velocity** is below a threshold.
 
 - **Velocity formula**: `sqrt(dx² + dy²) / dt` in pixels/ms
 - **Best for**: High sampling rate data, clean data
-- **Typical threshold**: 20-50 pixels/ms
+- **Typical threshold**: 20–50 pixels/ms (static), ~1.0 px/ms (head-mounted)
+
+### I-VAT+Frel (Head-Mounted Enhanced Pipeline)
+An enhanced I-VT pipeline designed for head-mounted eye trackers where camera motion contaminates gaze velocity:
+
+1. **Savitzky-Golay Smoothing** (55 ms window): Smooths raw gaze coordinates
+2. **Gaze Velocity**: Computed on smoothed coordinates
+3. **Flow Velocity**: Camera/head motion extracted from optical flow vectors
+4. **Relative Velocity**: `vel_relative = vel_gaze − vel_flow` — isolates true eye movement
+5. **Flow RMS**: Rolling-window RMS of flow velocity (quantifies head motion)
+6. **Adaptive Threshold**: `threshold = base + gain × flow_rms` — raises threshold during head movement
+7. **Classification**: Compare relative velocity against the (adaptive or fixed) threshold
 
 ### Adaptive Thresholding
-When enabled, the threshold is automatically adjusted based on movement variability:
-```
-adapted_threshold = original_threshold × (1 + tuning_parameter × MAD(velocity))
-```
-This helps handle individual differences in eye movement patterns.
+- **Static mode** (MAD-based):
+  ```
+  adapted_threshold = original_threshold × (1 + tuning_parameter × MAD(velocity))
+  ```
+- **Head-mounted mode** (flow-RMS-based):
+  ```
+  threshold_i = base_threshold + gain × flow_rms_i
+  ```
+  Automatically raises the detection threshold during periods of head movement.
 
 ---
 
-## Input CSV Format
+## Input Formats
+
+### Static Mode — CSV
 
 Your CSV file should contain columns for gaze coordinates and timestamps:
 
@@ -169,7 +257,7 @@ Your CSV file should contain columns for gaze coordinates and timestamps:
 
 **Auto-detected delimiters**: `;`, `,`, `\t`, `|`, space
 
-### Example CSV
+#### Example CSV
 ```csv
 timestamp;x;y
 1000;1280;720
@@ -178,6 +266,10 @@ timestamp;x;y
 1030;1500;800
 1040;1501;801
 ```
+
+### Head-Mounted Mode — NPY ZIP + MP4
+
+See [Required `.npy` Files in the ZIP](#required-npy-files-in-the-zip) above. The dataset follows the Drews/Pupil Invisible format with gaze coordinates in pixel space, timestamps in seconds, and optical flow as 11×11 grids per video frame.
 
 ---
 

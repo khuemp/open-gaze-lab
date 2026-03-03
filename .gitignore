@@ -4,8 +4,6 @@ __pycache__/
 # Data files
 data_example/
 data/
-dataset/
-lukas-wilde-eyetracking-thesis
 
 # Dependencies
 node_modules/
