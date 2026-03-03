@@ -1,5 +1,5 @@
 """
-FastAPI backend for Eye-tracking Event Detection.
+FastAPI backend for GazeInteract.
 Handles CSV file uploads and processes them using the detection pipeline.
 """
 
@@ -21,7 +21,7 @@ from src import EventDetection, EyeTrackingVisualizer
 from src import load_npy_dataset, extract_video_metadata, generate_video_gaze_visualization
 
 app = FastAPI(
-    title="Eye-tracking Event Detection API",
+    title="GazeInteract API",
     description="API for processing eye-tracking gaze data and detecting fixations",
     version="1.0.0"
 )
@@ -402,7 +402,7 @@ async def upload_video_dataset(
     resolution: str = Form("1088,1080"),
     min_fixation_duration: int = Form(50),
     detect_threshold: float = Form(1.0),
-    sampling_rate: int = Form(248),
+    sampling_rate: int = Form(200),
     adapt: bool = Form(True),
 ):
     """

@@ -192,7 +192,7 @@ function App() {
     return (
         <div className="container">
             <header className="header">
-                <h1>Eye-tracking Event Detection</h1>
+                <h1>GazeInteract</h1>
                 <div className="mode-toggle">
                     <button
                         className={`mode-btn ${mode === 'static' ? 'active' : ''}`}

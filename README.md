@@ -1,4 +1,4 @@
-# Eye-tracking Event Detection Toolkit
+# GazeInteract
 
 A web-based application for processing eye-tracking gaze data to detect and classify **fixations**, **saccades**, and **blinks**. Supports both **static (screen-based) eye trackers** and **head-mounted eye trackers** (e.g. Pupil Invisible). Provides a Python processing pipeline and a modern web interface for researchers working with eye-tracking data.
 
