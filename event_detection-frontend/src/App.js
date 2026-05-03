@@ -776,6 +776,24 @@ function VideoUpload({ onFileSelect, fileName }) {
 }
 
 function VideoResultsDisplay({ results }) {
+    const [videoFrameHeight, setVideoFrameHeight] = React.useState(1000);
+
+    React.useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.data?.type !== 'video-gaze-visualization-height') return;
+            const nextHeight = Number(event.data.height);
+            if (Number.isFinite(nextHeight) && nextHeight > 0) {
+                setVideoFrameHeight((currentHeight) => {
+                    const roundedHeight = Math.ceil(nextHeight);
+                    return Math.abs(currentHeight - roundedHeight) > 4 ? roundedHeight : currentHeight;
+                });
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);
+
     return (
         <div className="results-container">
             <div className="results-header">
@@ -836,6 +854,8 @@ function VideoResultsDisplay({ results }) {
                         src={`http://127.0.0.1:5000/api/plot-video/${results.filename}`}
                         title="Video Gaze Overlay"
                         className="plot-iframe video-iframe"
+                        scrolling="no"
+                        style={{ height: `${videoFrameHeight}px` }}
                     />
                 </div>
             )}

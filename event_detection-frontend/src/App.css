@@ -1,3 +1,4 @@
+/* Defines global font and color variables.*/
 :root {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -18,12 +19,14 @@
     --border: #ddd;
 }
 
+/* Resets default browser spacing.*/
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* Makes page height calculations work correctly.*/
 html,
 body {
     height: 100%;
@@ -53,11 +56,6 @@ body {
     font-weight: 700;
 }
 
-.header p {
-    font-size: 0.9rem;
-    opacity: 0.95;
-}
-
 /* Mode toggle buttons */
 .mode-toggle {
     display: inline-flex;
@@ -82,10 +80,6 @@ body {
     color: rgba(255, 255, 255, 0.6);
     letter-spacing: 0.3px;
     text-transform: uppercase;
-}
-
-.mode-btn svg {
-    flex-shrink: 0;
 }
 
 .mode-btn.active {
@@ -195,15 +189,6 @@ body {
     font-size: 0.8rem;
 }
 
-/* Background Image Upload */
-.background-image-upload {}
-
-.background-image-upload h2 {}
-
-.background-image-upload .upload-label {
-    padding: 0.75rem;
-}
-
 .bg-image-selected {
     display: flex;
     justify-content: space-between;
@@ -261,51 +246,6 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
-}
-
-/* Slider */
-.slider-container {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.slider {
-    flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--border);
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--primary);
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--primary);
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.threshold-value {
-    font-weight: 600;
-    color: var(--primary);
-    min-width: 50px;
-    text-align: right;
 }
 
 /* Buttons */
@@ -464,12 +404,6 @@ body {
     font-size: 0.8rem;
 }
 
-.results-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
 .plot-container {
     margin-top: 1rem;
     border: 1px solid var(--border);
@@ -495,10 +429,10 @@ body {
 }
 
 .video-iframe {
-    height: 85vh;
+    height: 1000px;
     min-height: 700px;
+    overflow: hidden;
 }
-
 
 
 /* Responsive */

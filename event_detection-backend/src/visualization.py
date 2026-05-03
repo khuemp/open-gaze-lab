@@ -830,6 +830,21 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
   var FPS    = __FPS__;
   var HAS_GT = __HAS_GT__;
 
+  function postDocumentHeight() {
+    var selectors = [".main-layout", ".timeline-wrap", ".controls"];
+    var height = 0;
+    selectors.forEach(function(selector) {
+      var el = document.querySelector(selector);
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      height = Math.max(height, rect.bottom + window.scrollY);
+    });
+    window.parent.postMessage({
+      type: 'video-gaze-visualization-height',
+      height: height + 10
+    }, '*');
+  }
+
   /* -- DOM refs -- */
   var vid      = document.getElementById("vid");
   var overlay  = document.getElementById("overlay");
@@ -863,9 +878,14 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
     tlCanvas.width  = tlW > 0 ? tlW : 600;
     tlCanvas.height = 36;
     drawTimeline();
+    postDocumentHeight();
   }
   vid.addEventListener("loadedmetadata", resize);
   window.addEventListener("resize", resize);
+  window.addEventListener("load", function(){
+    postDocumentHeight();
+    setTimeout(postDocumentHeight, 250);
+  });
 
   /* -- Binary search helper -- */
   function findIndex(arr, t){
