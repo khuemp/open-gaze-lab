@@ -22,7 +22,7 @@ def detect_flow_columns(df: pd.DataFrame) -> bool:
     """Check whether the DataFrame contains optical-flow displacement columns.
 
     The research pipeline expects ``flow_x`` and ``flow_y`` columns that store
-    the per-sample (or per-frame) optical-flow displacement at the gaze point.
+    the per-sample (or per-frame) optical-flow displacement at the gaze sample.
 
     Returns:
         True if both ``flow_x`` and ``flow_y`` are present.

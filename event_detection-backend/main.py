@@ -1,8 +1,9 @@
 """
-FastAPI backend for GazeInteract.
+FastAPI backend for OpenGazeLab.
 Handles CSV file uploads and processes them using the detection pipeline.
 """
 
+import io
 import os
 import json
 import shutil
@@ -21,7 +22,7 @@ from src import EventDetection, EyeTrackingVisualizer
 from src import load_npy_dataset, extract_video_metadata, generate_video_gaze_visualization
 
 app = FastAPI(
-    title="GazeInteract API",
+    title="OpenGazeLab API",
     description="API for processing eye-tracking gaze data and detecting fixations",
     version="1.0.0"
 )
@@ -35,18 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure paths
+# Configure paths — only outputs are persisted (events CSVs and visualization
+# HTMLs/videos). Uploaded inputs (CSVs, background images, raw videos) are
+# kept in tempfiles for the lifetime of a single request.
 BASE_DIR = Path(__file__).parent
-UPLOAD_FOLDER = BASE_DIR / 'data' / 'uploads'
 EVENTS_FOLDER = BASE_DIR / 'data' / 'events'
 VISUALIZATION_FOLDER = BASE_DIR / 'data' / 'visualization'
-IMAGES_FOLDER = BASE_DIR / 'data' / 'images'
-VIDEOS_FOLDER = BASE_DIR / 'data' / 'videos'
-UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 EVENTS_FOLDER.mkdir(parents=True, exist_ok=True)
 VISUALIZATION_FOLDER.mkdir(parents=True, exist_ok=True)
-IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
-VIDEOS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB for images
@@ -54,16 +51,19 @@ MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB for video files
 MAX_ZIP_SIZE = 100 * 1024 * 1024  # 100MB for dataset ZIP
 
 
-def detect_delimiter(file_path):
-    """Detect the delimiter used in a CSV file."""
-    delimiters = ['|', ';', ',', '\t', ' ']
-    with open(file_path, 'r', encoding='utf-8') as f:
-        first_line = f.readline()
-    
-    for delimiter in delimiters:
+def detect_delimiter(content):
+    """Detect the delimiter used in a CSV.
+
+    Args:
+        content: CSV text as ``str`` or ``bytes`` (only the first line is read).
+    """
+    if isinstance(content, bytes):
+        content = content.decode('utf-8', errors='replace')
+    first_line = content.splitlines()[0] if content else ''
+    for delimiter in ['|', ';', ',', '\t', ' ']:
         if delimiter in first_line:
             return delimiter
-    return ','  # Default to comma
+    return ','
 
 
 def detect_column_mapping(df):
@@ -193,52 +193,43 @@ async def upload_file(
         width, height = map(int, resolution.split(','))
     except:
         raise HTTPException(status_code=400, detail="Invalid resolution format. Use 'width,height'")
-    
-    # Save uploaded file
-    filename = f"{file.filename}"
-    file_path = UPLOAD_FOLDER / filename
-    
-    # Get original filename without extension for output naming
+
+    # Output filename prefix (no input persistence — CSV is parsed from memory)
     original_name = Path(file.filename).stem
-    
-    with open(file_path, 'wb') as f:
-        f.write(content)
-    
-    # Handle background image if provided
-    bg_image_path = None
+
+    # Optional background image — staged in a tempfile so the visualization
+    # can read it (it gets embedded as base64), then removed.
+    bg_tmp_path = None
     if background_image and background_image.filename:
-        # Validate image type
         allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
         image_ext = Path(background_image.filename).suffix.lower()
         if image_ext not in allowed_extensions:
             raise HTTPException(status_code=400, detail="Invalid image format. Use PNG, JPG, GIF, BMP, or WebP")
-        
-        # Read and validate image size
         image_content = await background_image.read()
         if len(image_content) > MAX_IMAGE_SIZE:
             raise HTTPException(status_code=400, detail="Image size exceeds 20MB limit")
-        
-        # Save the image
-        image_filename = f"{original_name}_bg{image_ext}"
-        bg_image_path = IMAGES_FOLDER / image_filename
-        with open(bg_image_path, 'wb') as f:
+        fd, bg_tmp_path = tempfile.mkstemp(suffix=image_ext, prefix="bg_")
+        with os.fdopen(fd, 'wb') as f:
             f.write(image_content)
-    
-    # Process the file
-    result = process_gaze_data(
-        file_path,
-        resolution=(width, height),
-        min_fixation_duration=min_fixation_duration,
-        detect_threshold=detect_threshold,
-        algorithm=algorithm,
-        sampling_rate=sampling_rate,
-        output_name=original_name,
-        fixation_merge_threshold=fixation_merge_threshold,
-        adapt=adapt,
-        bg_image_path=str(bg_image_path) if bg_image_path else None,
-        y_origin=y_origin
-    )
-    
+
+    try:
+        result = process_gaze_data(
+            content,
+            resolution=(width, height),
+            min_fixation_duration=min_fixation_duration,
+            detect_threshold=detect_threshold,
+            algorithm=algorithm,
+            sampling_rate=sampling_rate,
+            output_name=original_name,
+            fixation_merge_threshold=fixation_merge_threshold,
+            adapt=adapt,
+            bg_image_path=bg_tmp_path,
+            y_origin=y_origin
+        )
+    finally:
+        if bg_tmp_path and os.path.exists(bg_tmp_path):
+            os.remove(bg_tmp_path)
+
     return {
         "success": True,
         "message": "File processed successfully",
@@ -247,15 +238,15 @@ async def upload_file(
     }
 
 
-def process_gaze_data(file_path, resolution, min_fixation_duration, 
+def process_gaze_data(csv_content, resolution, min_fixation_duration,
                      detect_threshold, algorithm, sampling_rate, output_name,
                      fixation_merge_threshold=None, adapt=False, bg_image_path=None,
                      y_origin='top-left'):
     """
-    Process gaze data CSV file using EventDetection pipeline.
-    
+    Process gaze data CSV using the EventDetection pipeline.
+
     Args:
-        file_path: Path to uploaded CSV file
+        csv_content: Raw CSV bytes from the uploaded file (parsed in memory).
         resolution: Tuple of (width, height) display resolution
         min_fixation_duration: Minimum fixation duration in ms
         detect_threshold: Detection threshold in pixels
@@ -266,15 +257,12 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         adapt: Enable adaptive threshold adjustment (boolean)
         bg_image_path: Path to background image for visualization (optional)
         y_origin: Origin position for plot axes ('top-left', 'top-right', 'bottom-left', 'bottom-right')
-    
+
     Returns:
         Dictionary with processing results
     """
-    # Detect delimiter
-    delimiter = detect_delimiter(file_path)
-    
-    # Read CSV
-    gaze_data = pd.read_csv(file_path, sep=delimiter)
+    delimiter = detect_delimiter(csv_content)
+    gaze_data = pd.read_csv(io.BytesIO(csv_content), sep=delimiter)
     
     # Detect column mapping and normalization
     column_mapping = detect_column_mapping(gaze_data)
@@ -312,7 +300,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
     
     # Create standard visualization using EyeTrackingVisualizer class (valid data only)
     valid_event_data = detector.event_data_df[
-        ~detector.event_data_df['event_type'].isin(['NaN', 'Out of Range Gaze Points'])
+        ~detector.event_data_df['event_type'].isin(['NaN', 'Out of Range Gaze Samples'])
     ].copy()
     
     plot_file = VISUALIZATION_FOLDER / f"{output_name}_visualization.html"
@@ -344,7 +332,7 @@ def process_gaze_data(file_path, resolution, min_fixation_duration,
         'num_fixations': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Fixation']),
         'num_saccades': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Saccade']),
         'num_fixation_points': detector.event_data_df['fixation_id'].dropna().nunique(),
-        'num_oor_gaze_points': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Out of Range Gaze Points']),
+        'num_oor_gaze_points': len(detector.event_data_df[detector.event_data_df['event_type'] == 'Out of Range Gaze Samples']),
         'num_nan_gaze_points': len(detector.event_data_df[detector.event_data_df['event_type'] == 'NaN']),
         'best_threshold': detector.best_threshold if hasattr(detector, 'best_threshold') else None
     }
@@ -402,7 +390,7 @@ async def upload_video_dataset(
     resolution: str = Form("1088,1080"),
     min_fixation_duration: int = Form(50),
     detect_threshold: float = Form(1.0),
-    sampling_rate: int = Form(248),
+    sampling_rate: int = Form(30),
     adapt: bool = Form(True),
 ):
     """
@@ -437,8 +425,11 @@ async def upload_video_dataset(
     # Derive an output name from the video filename
     output_name = Path(video.filename).stem
 
-    # Save video
-    video_path = VIDEOS_FOLDER / video.filename
+    # Save the video alongside its visualization HTML so the overlay's
+    # /api/video/<filename> endpoint can stream it. This is the only piece
+    # of the upload that we persist — the ZIP is staged in a tempdir.
+    video_save_name = f"{output_name}{Path(video.filename).suffix.lower()}"
+    video_path = VISUALIZATION_FOLDER / video_save_name
     with open(video_path, 'wb') as f:
         f.write(video_content)
 
@@ -449,7 +440,7 @@ async def upload_video_dataset(
         f.write(zip_content)
 
     try:
-        gaze_df, metadata = load_npy_dataset(str(zip_path))
+        gaze_df, metadata = load_npy_dataset(str(zip_path), sampling_rate_hz=sampling_rate)
     except Exception as e:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Failed to load dataset: {e}")
@@ -474,12 +465,15 @@ async def upload_video_dataset(
         algorithm="ivt",
         sampling_rate=sampling_rate,
         adapt=adapt,
+        correct_timestamps_flag=False,
     )
 
     events_output_file = EVENTS_FOLDER / f"{output_name}_events.csv"
     detector.event_data_df.to_csv(events_output_file, index=False)
 
-    # Build flow data list for visualization
+    # Build flow data list for visualization. Times must be relative to
+    # video.currentTime (which starts at 0), not the raw epoch seconds.
+    video_start_time = metadata.get("video_start_time", 0.0)
     flow_data = None
     if "flow_x" in gaze_df.columns and "flow_y" in gaze_df.columns:
         # Downsample flow to ~one per video frame
@@ -488,7 +482,7 @@ async def upload_video_dataset(
         for i in range(0, len(gaze_df), step):
             row = gaze_df.iloc[i]
             flow_data.append({
-                "time_s": round(float(row["timestamp"]), 4),
+                "time_s": round(float(row["timestamp"]) - video_start_time, 4),
                 "flow_x": round(float(row["flow_x"]), 3),
                 "flow_y": round(float(row["flow_y"]), 3),
             })
@@ -500,11 +494,10 @@ async def upload_video_dataset(
 
     # Valid events only
     valid_events = detector.event_data_df[
-        ~detector.event_data_df['event_type'].isin(['NaN', 'Out of Range Gaze Points'])
+        ~detector.event_data_df['event_type'].isin(['NaN', 'Out of Range Gaze Samples'])
     ].copy()
 
-    video_url = f"/api/video/{video.filename}"
-    video_start_time = metadata.get("video_start_time", 0.0)
+    video_url = f"/api/video/{video_save_name}"
 
     vis_path = VISUALIZATION_FOLDER / f"{output_name}_video_visualization.html"
     generate_video_gaze_visualization(
@@ -519,10 +512,6 @@ async def upload_video_dataset(
     )
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    # Compute duration from valid events
-    timestamps_s = valid_events["timestamp"].values / 1000.0
-    duration_s = round(float(timestamps_s[-1] - timestamps_s[0]), 2) if len(timestamps_s) > 1 else 0.0
 
     # Compute F1 scores if ground truth is available
     f1_fixation = None
@@ -550,10 +539,9 @@ async def upload_video_dataset(
             "video_resolution": f"{vid_w}x{vid_h}",
             "has_gt": gt_labels is not None,
             "best_threshold": detector.best_threshold if hasattr(detector, 'best_threshold') else None,
-            "duration_s": duration_s,
             "f1_fixation": f1_fixation,
             "f1_saccade": f1_saccade,
-            "video_filename": video.filename,
+            "video_filename": video_save_name,
         },
     }
 
@@ -563,7 +551,7 @@ async def serve_video(filename: str, request: Request):
     """Serve a video file with HTTP Range support for seeking."""
     # Sanitize filename to prevent path traversal
     safe_name = Path(filename).name
-    video_path = VIDEOS_FOLDER / safe_name
+    video_path = VISUALIZATION_FOLDER / safe_name
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
 

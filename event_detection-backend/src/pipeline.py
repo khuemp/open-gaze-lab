@@ -7,9 +7,9 @@ from .detection_algorithms import classify_idt, classify_ivt
 
 
 def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
-    """Classifies fixation points based on their relationship to Areas of Interest (AOIs).
+    """Classifies fixation samples based on their relationship to Areas of Interest (AOIs).
 
-    Determines which AOI, if any, each fixation point belongs to using various classification
+    Determines which AOI, if any, each fixation sample belongs to using various classification
     algorithms. Can use standard containment, closest AOI attachment, or weighted bounding box
     methods for classification.
 
@@ -42,7 +42,7 @@ def classify_aoi(self, gaze_data, aois, algorithm='weighted_bbox_attach'):
         # Proceed even without class context
         pass
 
-    # Extract unique fixation points from gaze data
+    # Extract unique fixation samples from gaze data
     fixations = gaze_data[['fixation_id', 'fixation_x', 'fixation_y']].drop_duplicates()
 
     # Filter out invalid coordinates
@@ -195,12 +195,12 @@ def detect_event(self, min_fixation_duration=50, aois=None,
     if not self.is_valid_data:
         return None, None
     
-    # Separate invalid (NaN / out-of-range) gaze points before detection
+    # Separate invalid (NaN / out-of-range) gaze samples before detection
     valid_gaze, invalid_mask, invalid_reasons = separate_invalid_points(self.gaze_data, self.resolution)
     original_length = len(self.gaze_data)
 
     if len(valid_gaze) == 0:
-        logging.warning("No valid gaze points after filtering. Returning None.")
+        logging.warning("No valid gaze samples after filtering. Returning None.")
         return None, None
 
     best_thresh = optimize_threshold(valid_gaze, adapt=adapt, algorithm=algorithm, sampling_rate=sampling_rate) if optimize else detect_threshold
@@ -243,12 +243,12 @@ def detect_event(self, min_fixation_duration=50, aois=None,
 def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None, algorithm=None,
                             fixation_merge_threshold: float = None, detect_threshold=150.0, adapt=False,
                             tuning_parameter=0.1, optimize=False, duration_cutoff: float = None,
-                            sampling_rate: float = None):
+                            sampling_rate: float = None, correct_timestamps_flag: bool = True):
     """Processes and saves eye-tracking event detection results to a CSV file.
 
     Performs complete event detection pipeline including optional timestamp correction,
     duration trimming, fixation/saccade detection, AOI classification, and data cleaning.
-    Saves results as a detailed CSV with one row per gaze point.
+    Saves results as a detailed CSV with one row per gaze sample.
 
     Args:
         output_dir (str): Path where the output CSV file will be saved.
@@ -275,6 +275,10 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
             Defaults to None (process all data).
         sampling_rate (float, optional): Nominal sampling rate in Hz (e.g., 30, 60, 120).
             If provided, corrects timestamps to uniform intervals. Defaults to None.
+        correct_timestamps_flag (bool, optional): Whether to apply timestamp
+            correction when sampling_rate is given.  Set to False for datasets
+            that already have accurate timestamps (e.g. .npy files from Pupil
+            Invisible).  Defaults to True.
 
     Returns:
         pd.DataFrame or None: Processed gaze data with all detected events and
@@ -293,7 +297,7 @@ def process_event(self, output_dir, min_fixation_duration=50, aoi_file_path=None
         aois = pd.read_csv(aoi_file_path)
 
     # Apply timestamp correction if sampling rate is provided
-    if sampling_rate is not None:
+    if sampling_rate is not None and correct_timestamps_flag:
         self.gaze_data = correct_timestamps(self.gaze_data, sampling_rate)
 
     if duration_cutoff is not None:

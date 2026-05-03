@@ -17,12 +17,24 @@ import shutil
 import numpy as np
 import pandas as pd
 
+# Files we look for inside the dataset ZIP. Anything else in the archive is ignored.
+_REQUIRED_NPY_FILES = (
+    "gaze.npy",
+    "time_gaze.npy",
+    "optic_flow.npy",
+    "time_optic_flow.npy",
+    "time_scene_camera.npy",
+)
+_OPTIONAL_NPY_FILES = ("gt_labels.npy",)
 
-def load_npy_dataset(zip_path: str):
+
+def load_npy_dataset(zip_path: str, sampling_rate_hz: float):
     """Load a head-mounted eye-tracking dataset from a ZIP of .npy files.
 
     Args:
         zip_path: Path to the ZIP file containing .npy files.
+        sampling_rate_hz: Gaze sampling rate in Hz, supplied by the caller.
+            The loader does not infer it from the data.
 
     Returns:
         Tuple of (DataFrame, metadata_dict).
@@ -34,34 +46,28 @@ def load_npy_dataset(zip_path: str):
     """
     tmp_dir = tempfile.mkdtemp(prefix="eyetrack_npy_")
     try:
-        # Extract ZIP
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(tmp_dir)
+            extracted = _extract_known_npys(zf, tmp_dir)
 
-        # Find the directory containing the .npy files (may be nested one level)
-        npy_dir = _find_npy_dir(tmp_dir)
+        if "gaze.npy" not in extracted:
+            raise FileNotFoundError(
+                "ZIP must contain gaze.npy (at root or in a single subfolder). "
+                f"Found relevant files: {sorted(extracted)}"
+            )
 
-        # Load required arrays
-        gaze = np.load(os.path.join(npy_dir, "gaze.npy"))                     # (N, 2)
-        time_gaze = np.load(os.path.join(npy_dir, "time_gaze.npy"))           # (N,)
-        optic_flow = np.load(os.path.join(npy_dir, "optic_flow.npy"))         # (M, 11, 11, 2)
-        time_of = np.load(os.path.join(npy_dir, "time_optic_flow.npy"))       # (M,)
-        time_sc = np.load(os.path.join(npy_dir, "time_scene_camera.npy"))     # (M,)
+        gaze = np.load(extracted["gaze.npy"])                     # (N, 2)
+        time_gaze = np.load(extracted["time_gaze.npy"])           # (N,)
+        optic_flow = np.load(extracted["optic_flow.npy"])         # (M, 11, 11, 2)
+        time_of = np.load(extracted["time_optic_flow.npy"])       # (M,)
+        time_sc = np.load(extracted["time_scene_camera.npy"])     # (M,)
 
-        # Optional ground truth labels
-        gt_path = os.path.join(npy_dir, "gt_labels.npy")
-        gt_labels = np.load(gt_path) if os.path.exists(gt_path) else None
+        gt_labels = np.load(extracted["gt_labels.npy"]) if "gt_labels.npy" in extracted else None
 
-        # Build DataFrame
         df = _build_dataframe(gaze, time_gaze, optic_flow, time_of, time_sc, gt_labels)
-
-        # Metadata
-        dt = np.diff(time_gaze)
-        sampling_rate_hz = 1.0 / np.median(dt) if len(dt) > 0 else 30.0
 
         metadata = {
             "video_start_time": float(time_sc[0]),
-            "sampling_rate_hz": round(float(sampling_rate_hz), 1),
+            "sampling_rate_hz": float(sampling_rate_hz),
             "has_gt_labels": gt_labels is not None,
             "n_gaze_samples": len(time_gaze),
             "n_video_frames": len(time_sc),
@@ -72,7 +78,7 @@ def load_npy_dataset(zip_path: str):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def load_npy_dataset_from_dir(data_dir: str):
+def load_npy_dataset_from_dir(data_dir: str, sampling_rate_hz: float):
     """Load a head-mounted dataset directly from a directory of .npy files.
 
     Same as load_npy_dataset but without the ZIP extraction step.
@@ -89,12 +95,9 @@ def load_npy_dataset_from_dir(data_dir: str):
 
     df = _build_dataframe(gaze, time_gaze, optic_flow, time_of, time_sc, gt_labels)
 
-    dt = np.diff(time_gaze)
-    sampling_rate_hz = 1.0 / np.median(dt) if len(dt) > 0 else 30.0
-
     metadata = {
         "video_start_time": float(time_sc[0]),
-        "sampling_rate_hz": round(float(sampling_rate_hz), 1),
+        "sampling_rate_hz": float(sampling_rate_hz),
         "has_gt_labels": gt_labels is not None,
         "n_gaze_samples": len(time_gaze),
         "n_video_frames": len(time_sc),
@@ -135,22 +138,30 @@ def extract_video_metadata(video_path: str) -> dict:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _find_npy_dir(root: str) -> str:
-    """Find the directory inside *root* that contains gaze.npy.
+def _extract_known_npys(zf: zipfile.ZipFile, dest_dir: str) -> dict:
+    """Extract only the known dataset .npy files from *zf* into *dest_dir*.
 
-    Handles both flat ZIPs (files at root) and single-subfolder ZIPs.
+    Anything else in the archive (videos, JSON, extra arrays, nested folders)
+    is ignored. Matches by basename, so files may live at the root or any
+    subfolder inside the ZIP. Returns a mapping basename -> extracted path.
     """
-    if os.path.isfile(os.path.join(root, "gaze.npy")):
-        return root
-    # Check one level deep
-    for entry in os.listdir(root):
-        candidate = os.path.join(root, entry)
-        if os.path.isdir(candidate) and os.path.isfile(os.path.join(candidate, "gaze.npy")):
-            return candidate
-    raise FileNotFoundError(
-        "ZIP must contain gaze.npy (at root or in a single subfolder). "
-        f"Found: {os.listdir(root)}"
-    )
+    wanted = set(_REQUIRED_NPY_FILES) | set(_OPTIONAL_NPY_FILES)
+    extracted: dict = {}
+
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        # ZIP entries always use '/' separators per the spec.
+        basename = info.filename.replace("\\", "/").rsplit("/", 1)[-1]
+        # Skip macOS resource-fork files like '._gaze.npy' and any non-target file.
+        if basename.startswith("._") or basename not in wanted or basename in extracted:
+            continue
+        out_path = os.path.join(dest_dir, basename)
+        with zf.open(info) as src, open(out_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        extracted[basename] = out_path
+
+    return extracted
 
 
 def _build_dataframe(gaze, time_gaze, optic_flow, time_of, time_sc, gt_labels=None):

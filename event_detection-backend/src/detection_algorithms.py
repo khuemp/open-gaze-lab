@@ -129,8 +129,8 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
     Args:
         result_data (pd.DataFrame): Original gaze data DataFrame
         event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
-        fixation_x (np.ndarray): X coordinates of fixation centers
-        fixation_y (np.ndarray): Y coordinates of fixation centers
+        fixation_x (np.ndarray): X coordinates of fixation events
+        fixation_y (np.ndarray): Y coordinates of fixation events
         event_duration (np.ndarray): Duration of each event in milliseconds
         fixation_ids (np.ndarray): Unique IDs for fixations
         saccade_ids (np.ndarray): Unique IDs for saccades
@@ -154,14 +154,14 @@ def finalize_result_dataframe(result_data, event_type, fixation_x, fixation_y,
 
 
 def add_saccade_ids(event_type, saccade_ids):
-    """Assigns unique IDs to consecutive sequences of saccade points.
+    """Assigns unique IDs to consecutive sequences of saccade samples.
 
     Args:
         event_type (np.ndarray): Array of event classifications ('Fixation' or 'Saccade')
         saccade_ids (np.ndarray): Array to store saccade IDs, initialized with NaN
 
     Returns:
-        np.ndarray: Updated array with consecutive integers assigned to each sequence of saccade points
+        np.ndarray: Updated array with consecutive integers assigned to each sequence of saccade samples
     """
     saccade_id_counter = 1 # Saccade counter starts at 1
     in_saccade = False
@@ -179,7 +179,7 @@ def add_saccade_ids(event_type, saccade_ids):
 
 def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50,
                  adapt=False, tuning_parameter=0.1, sampling_rate=None):
-    """Classifies gaze points into fixations and saccades using the I-DT algorithm.
+    """Classifies gaze samples into fixations and saccades using the I-DT algorithm.
 
     Enhanced with the I-VAT+Frel pipeline when *sampling_rate* is provided:
 

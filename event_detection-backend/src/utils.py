@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 
 def separate_invalid_points(df, resolution):
-    """Separates invalid gaze points (NaN and out-of-range) from valid ones.
+    """Separates invalid gaze samples (NaN and out-of-range) from valid ones.
 
     Identifies rows where gaze coordinates are NaN or fall outside the screen
     resolution bounds, and splits the DataFrame into valid and invalid subsets.
@@ -14,9 +14,9 @@ def separate_invalid_points(df, resolution):
 
     Returns:
         tuple: (
-            pd.DataFrame: Valid gaze points with original index preserved,
+            pd.DataFrame: Valid gaze samples with original index preserved,
             pd.Series: Boolean mask of invalid rows (True = invalid),
-            pd.Series: Reason strings for invalid rows ('NaN' or 'Out of Range Gaze Points'),
+            pd.Series: Reason strings for invalid rows ('NaN' or 'Out of Range Gaze Samples'),
                        NaN for valid rows
         )
     """
@@ -32,27 +32,27 @@ def separate_invalid_points(df, resolution):
 
     reasons = pd.Series(np.nan, index=df.index, dtype=object)
     reasons[is_nan] = 'NaN'
-    reasons[is_oor] = 'Out of Range Gaze Points'
+    reasons[is_oor] = 'Out of Range Gaze Samples'
 
     valid_df = df[~invalid_mask].copy()
 
     n_nan = is_nan.sum()
     n_oor = is_oor.sum()
     if n_nan > 0 or n_oor > 0:
-        logging.info(f"Separated {n_nan} NaN and {n_oor} out-of-range gaze points from {len(df)} total rows")
+        logging.info(f"Separated {n_nan} NaN and {n_oor} out-of-range gaze samples from {len(df)} total rows")
 
     return valid_df, invalid_mask, reasons
 
 
 def reinsert_invalid_points(valid_df, original_length, invalid_mask, reasons):
-    """Reinserts invalid gaze points back into the processed DataFrame at original positions.
+    """Reinserts invalid gaze samples back into the processed DataFrame at original positions.
 
     Takes the detection results from valid-only data and merges them back with the
     invalid rows, restoring the original row count and order. Invalid rows receive
-    their corresponding event_type label ('NaN' or 'Out of Range Gaze Points').
+    their corresponding event_type label ('NaN' or 'Out of Range Gaze Samples').
 
     Args:
-        valid_df (pd.DataFrame): Processed detection results for valid gaze points.
+        valid_df (pd.DataFrame): Processed detection results for valid gaze samples.
         original_length (int): Total number of rows in the original input.
         invalid_mask (pd.Series): Boolean mask where True indicates invalid rows.
         reasons (pd.Series): Event type labels for invalid rows.
@@ -114,7 +114,7 @@ def correct_timestamps(df, sampling_rate):
 def compute_velocity(df):
     """Calculates point-to-point velocities for variable framerate gaze data.
 
-    Computes instantaneous velocities between consecutive gaze points, handling
+    Computes instantaneous velocities between consecutive gaze samples, handling
     variable sampling rates (5-30fps) without modifying original timestamps.
     Uses Euclidean distance for spatial displacement.
 
@@ -187,10 +187,10 @@ def clean_fixations(events_df):
 
     Args:
         events_df (pd.DataFrame): Event data with columns:
-            - event_type (str): 'Fixation', 'Saccade', 'NaN', or 'Out of Range Gaze Points'
+            - event_type (str): 'Fixation', 'Saccade', 'NaN', or 'Out of Range Gaze Samples'
             - timestamp (float): Time in milliseconds
-            - fixation_x (float): X coordinate of fixation center
-            - fixation_y (float): Y coordinate of fixation center
+            - fixation_x (float): X coordinate of fixation event
+            - fixation_y (float): Y coordinate of fixation event
             - fixation_id (int): Unique fixation identifier
 
     Returns:
@@ -251,7 +251,7 @@ def merge_fixations(gaze_data, fixation_merge_threshold=None):
         gaze_data (pd.DataFrame): Event classification data with columns:
             - event_type (str): 'Fixation' or 'Saccade'
             - fixation_id (int): Unique fixation identifier
-            - fixation_x (float): X coordinate of fixation center
+            - fixation_x (float): X coordinate of fixation event
             - fixation_y (float): Y coordinate in pixels
             - timestamp (float): Time in milliseconds
             - saccade_id (int): Unique saccade identifier

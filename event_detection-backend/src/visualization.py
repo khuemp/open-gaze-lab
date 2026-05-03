@@ -23,7 +23,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
                                     attach_type='bbox', y_origin='top-left'):
     """Creates an interactive visualization of gaze data, fixations, and AOIs.
 
-    Generates a Plotly-based interactive plot showing gaze points, fixations, and
+    Generates a Plotly-based interactive plot showing gaze samples, fixations, and
     optionally Areas of Interest (AOIs). The plot can include a background image
     and different styles of AOI visualization.
 
@@ -73,13 +73,13 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     }
     colors = [color_map.get(e, color_map['Saccade']) for e in gaze_data['event_type']]
 
-    # Gaze points scatter
+    # gaze samples scatter
     gaze_scatter = go.Scatter(
         x=gaze_data['x'],
         y=gaze_data['y'],
         mode='markers',
         marker=dict(color=colors, size=6, opacity=0.7),
-        name='Gaze Points'
+        name='Gaze Samples'
     )
 
     # Fixation centers
@@ -95,7 +95,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
         text=[str(int(fid)) for fid in fixations['fixation_id']],
         textposition='top center',
         textfont=dict(size=10, color='#1a1a1a', family='Arial'),
-        name='Fixation Centers'
+        name='Fixation Events'
     )
 
     # Scanpath
@@ -248,7 +248,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
     """Creates an interactive time-scrollable visualization of gaze data and fixations.
 
     Generates a Plotly-based animated plot that allows users to scroll through time
-    and see how gaze points and fixations appear progressively. Includes a time slider
+    and see how gaze samples and fixations appear progressively. Includes a time slider
     and play/pause controls for temporal exploration of eye movement data.
 
     Args:
@@ -318,7 +318,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
             ids=visible.index.astype(str).tolist(),
             mode='markers',
             marker=dict(color=colors, size=6, opacity=0.7),
-            name='Gaze Points',
+            name='Gaze Samples',
             showlegend=True
         )
         
@@ -335,7 +335,7 @@ def plot_gaze_with_time_scrolling(self, output_dir, bg_image_path=None, aois=Non
             text=[str(int(fid)) for fid in fixations['fixation_id']],
             textposition='top center',
             textfont=dict(size=10, color='#1a1a1a', family='Arial'),
-            name='Fixation Centers',
+            name='Fixation Events',
             showlegend=True
         )
         
@@ -547,7 +547,7 @@ def generate_video_gaze_visualization(
 
     Creates an interactive page with:
       - HTML5 video playback with canvas gaze overlay
-      - Gaze point tracking (color-coded fixation/saccade)
+      - gaze sample tracking (color-coded fixation/saccade)
       - Trailing gaze path (last 500 ms)
       - Fixation centers with numbered labels and scanpath
       - Optic flow arrow indicating head motion
@@ -585,6 +585,14 @@ def generate_video_gaze_visualization(
     n = len(df)
     step = max(1, n // 3000)
 
+    # Pre-align GT to df.index so positional access matches df.iloc rows.
+    # gt_labels_series carries the *original* gaze_df index, while df may be
+    # a filtered subset (e.g. NaN/out-of-range rows removed) — using iloc
+    # directly on the unaligned series would produce off-by-N mismatches.
+    gt_aligned_arr = None
+    if gt_labels_series is not None:
+        gt_aligned_arr = gt_labels_series.loc[df.index].values.astype(int)
+
     gaze_samples = []
     for i in range(0, n, step):
         row = df.iloc[i]
@@ -595,8 +603,8 @@ def generate_video_gaze_visualization(
             "ev": 1 if row["event_type"] == "Fixation" else 0,
             "fid": int(row["fixation_id"]) if pd.notna(row.get("fixation_id")) else -1,
         }
-        if gt_labels_series is not None:
-            sample["gt"] = int(gt_labels_series.iloc[i])
+        if gt_aligned_arr is not None:
+            sample["gt"] = int(gt_aligned_arr[i])
         gaze_samples.append(sample)
 
     # Build fixation summaries
@@ -631,13 +639,12 @@ def generate_video_gaze_visualization(
         "duration_s": round(float(duration_s), 2),
     }
 
-    # GT comparison stats
-    if gt_labels_series is not None:
+    # GT comparison stats (reuse the index-aligned array built above)
+    if gt_aligned_arr is not None:
         from sklearn.metrics import f1_score
         pred = (df["event_type"] == "Fixation").astype(int).values
-        gt = gt_labels_series.values.astype(int)
-        stats["f1_fixation"] = round(float(f1_score(gt, pred, pos_label=1, zero_division=0)), 4)
-        stats["f1_saccade"] = round(float(f1_score(gt, pred, pos_label=0, zero_division=0)), 4)
+        stats["f1_fixation"] = round(float(f1_score(gt_aligned_arr, pred, pos_label=1, zero_division=0)), 4)
+        stats["f1_saccade"] = round(float(f1_score(gt_aligned_arr, pred, pos_label=0, zero_division=0)), 4)
 
     has_gt = gt_labels_series is not None
 
@@ -678,12 +685,12 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
 
   /* Video + canvas wrapper */
   .main-layout {
-    display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start;
+    display: block; margin-bottom: 12px;
   }
   .video-wrap {
-    position: relative; display: inline-block;
+    position: relative; display: block;
     background: #000; border-radius: 8px; overflow: hidden;
-    flex: 1; min-width: 0;
+    max-width: 100%;
   }
   .video-wrap video {
     display: block; width: 100%; height: auto;
@@ -693,21 +700,25 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
     width: 100%; height: 100%;
     pointer-events: none;
   }
-  .sidebar {
-    width: 170px; flex-shrink: 0;
-    display: flex; flex-direction: column; gap: 10px;
+  .overlay-panel {
+    position: absolute; bottom: 10px; right: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    background: rgba(22, 33, 62, 0.85); padding: 10px 12px;
+    border-radius: 8px; border: 1px solid rgba(109,213,250,0.25);
+    pointer-events: auto; z-index: 10;
+    backdrop-filter: blur(4px);
   }
-  .sidebar .legend { display: flex; flex-direction: column; gap: 6px; font-size: 0.85em; margin: 0; }
-  .sidebar .legend span { display: flex; align-items: center; gap: 5px; }
-  .sidebar .legend .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
-  .sidebar .toggle-row { display: flex; flex-direction: column; gap: 6px; margin: 0; }
-  .sidebar .toggle-row label {
+  .overlay-panel .legend { display: flex; flex-direction: column; gap: 5px; font-size: 0.8em; margin: 0; }
+  .overlay-panel .legend span { display: flex; align-items: center; gap: 5px; }
+  .overlay-panel .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .overlay-panel .toggle-row { display: flex; flex-direction: column; gap: 4px; margin: 0;
+    border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; }
+  .overlay-panel .toggle-row label {
     display: flex; align-items: center; gap: 5px;
-    background: #16213e; padding: 5px 10px; border-radius: 6px;
-    font-size: 0.82em; cursor: pointer; user-select: none;
-    border: 1px solid #333;
+    font-size: 0.78em; cursor: pointer; user-select: none;
+    color: #ccc;
   }
-  .sidebar .toggle-row input[type=checkbox] { accent-color: #6dd5fa; }
+  .overlay-panel .toggle-row input[type=checkbox] { accent-color: #6dd5fa; }
 
   /* Timeline strip */
   .timeline-wrap {
@@ -753,7 +764,7 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
 <h1>Head-Mounted Eye Tracking Visualization</h1>
 <p class="subtitle">Gaze overlay on scene camera video &mdash; I-VAT+Frel pipeline</p>
 
-<!-- Main layout: video + sidebar -->
+<!-- Main layout: video with overlay panel -->
 <div class="main-layout">
 
 <!-- Video with canvas overlay -->
@@ -762,23 +773,23 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
     <source src="__VIDEO_URL__" type="video/mp4">
   </video>
   <canvas id="overlay"></canvas>
-</div>
 
-<!-- Sidebar: legend + toggles -->
-<div class="sidebar">
-  <div class="legend">
-    <span><span class="dot" style="background:#22c55e"></span> Fixation</span>
-    <span><span class="dot" style="background:#ef4444"></span> Saccade</span>
-    <span><span class="dot" style="background:#6dd5fa"></span> Optic Flow</span>
-    <span id="gt-legend-side" style="display:none"><span class="dot" style="background:#fbbf24"></span> Ground Truth</span>
-  </div>
-  <div class="toggle-row" style="display:flex">
-    <label><input type="checkbox" id="tGaze" checked> Gaze Point</label>
-    <label><input type="checkbox" id="tTrail" checked> Gaze Trail</label>
-    <label><input type="checkbox" id="tFix" checked> Fixation Centers</label>
-    <label><input type="checkbox" id="tScan" checked> Scanpath</label>
-    <label><input type="checkbox" id="tFlow" checked> Flow Arrow</label>
-    <label id="tGtLabel" style="display:none"><input type="checkbox" id="tGt" checked> GT Comparison</label>
+  <!-- Overlay panel: legend + toggles in bottom-right corner -->
+  <div class="overlay-panel">
+    <div class="legend">
+      <span><span class="dot" style="background:#22c55e"></span> Fixation</span>
+      <span><span class="dot" style="background:#ef4444"></span> Saccade</span>
+      <span><span class="dot" style="background:#6dd5fa"></span> Optic Flow</span>
+      <span id="gt-legend-side" style="display:none"><span class="dot" style="background:#fbbf24"></span> Ground Truth</span>
+    </div>
+    <div class="toggle-row" style="display:flex">
+      <label><input type="checkbox" id="tGaze" checked> Gaze Sample</label>
+      <label><input type="checkbox" id="tTrail" checked> Gaze Trail</label>
+      <label><input type="checkbox" id="tFix" checked> Fixation Events</label>
+      <label><input type="checkbox" id="tScan" checked> Scanpath</label>
+      <label><input type="checkbox" id="tFlow" checked> Flow Arrow</label>
+      <label id="tGtLabel" style="display:none"><input type="checkbox" id="tGt" checked> GT Comparison</label>
+    </div>
   </div>
 </div>
 
@@ -878,7 +889,7 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
     return FLOW[idx];
   }
 
-  /* -- Draw timeline strip (static) -- */
+  /* -- Draw timeline strip (stationary) -- */
   function drawTimeline(){
     var w=tlCanvas.width, h=tlCanvas.height;
     tlCtx.clearRect(0,0,w,h);
@@ -957,7 +968,7 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
       ctx.restore();
     }
 
-    /* -- Current gaze point -- */
+    /* -- Current gaze sample -- */
     if(tGaze.checked && idx > 0 && idx <= GAZE.length){
       var g = GAZE[Math.min(idx, GAZE.length-1)];
       /* only show if within 0.1 s of a sample */
@@ -1026,31 +1037,36 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
       var fl = findFlowAtTime(currentT);
       if(fl){
         var mag = Math.sqrt(fl.flow_x*fl.flow_x + fl.flow_y*fl.flow_y);
-        var maxLen = 60;
-        var len = Math.min(mag * 12, maxLen);
+        var maxLen = 70;
+        var len = Math.min(mag * 14, maxLen);
         if(len > 2){
-          var ax = cw - 60, ay = 50; /* top-right corner anchor */
+          var ax = 70, ay = ch - 45; /* bottom-left corner anchor */
           var angle = Math.atan2(fl.flow_y, fl.flow_x);
           var ex = ax + Math.cos(angle)*len;
           var ey = ay + Math.sin(angle)*len;
-          var alpha = Math.min(0.4 + mag*0.3, 1.0);
           ctx.save();
-          ctx.strokeStyle = "rgba(109,213,250,"+alpha.toFixed(2)+")";
-          ctx.fillStyle   = "rgba(109,213,250,"+alpha.toFixed(2)+")";
-          ctx.lineWidth = 2.5;
+          /* dark background box */
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.beginPath();
+          ctx.roundRect(ax - 50, ay - 45, 100, 70, 6);
+          ctx.fill();
+          /* label */
+          ctx.font = "bold 12px 'Segoe UI',sans-serif";
+          ctx.fillStyle = "#6dd5fa";
+          ctx.textAlign = "center";
+          ctx.fillText("Flow: "+mag.toFixed(1)+" px", ax, ay - 30);
+          /* arrow */
+          ctx.strokeStyle = "#6dd5fa";
+          ctx.fillStyle   = "#6dd5fa";
+          ctx.lineWidth = 3;
           ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ex,ey); ctx.stroke();
           /* arrowhead */
-          var headLen=8, a1=angle+2.7, a2=angle-2.7;
+          var headLen=10, a1=angle+2.7, a2=angle-2.7;
           ctx.beginPath();
           ctx.moveTo(ex,ey);
           ctx.lineTo(ex+Math.cos(a1)*headLen, ey+Math.sin(a1)*headLen);
           ctx.lineTo(ex+Math.cos(a2)*headLen, ey+Math.sin(a2)*headLen);
           ctx.closePath(); ctx.fill();
-          /* magnitude label */
-          ctx.font = "11px 'Segoe UI',sans-serif";
-          ctx.fillStyle = "rgba(109,213,250,0.8)";
-          ctx.textAlign = "center";
-          ctx.fillText(mag.toFixed(1)+" px", ax, ay-14);
           ctx.restore();
         }
       }
@@ -1059,13 +1075,24 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
     /* -- GT comparison indicator -- */
     if(HAS_GT && tGt && tGt.checked && idx > 0 && idx <= GAZE.length){
       var g = GAZE[Math.min(idx, GAZE.length-1)];
-      if(g.gt !== undefined && Math.abs(g.t - currentT) < 0.1){
+      if(g.gt !== undefined && Math.abs(g.t - currentT) < 0.5){
         var match = (g.ev === g.gt);
+        var gtX = 20, gtY = ch - 150;
         ctx.save();
-        ctx.fillStyle = match ? "rgba(34,197,94,0.7)" : "rgba(239,68,68,0.9)";
-        ctx.font = "bold 11px 'Segoe UI',sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText(match ? "GT \u2713" : "GT \u2717", 12, 22);
+        /* dark background badge */
+        var badgeColor = match ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)";
+        var borderColor = match ? "#22c55e" : "#ef4444";
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(gtX, gtY, 100, 30, 6);
+        ctx.fill(); ctx.stroke();
+        /* text */
+        ctx.fillStyle = match ? "#4ade80" : "#f87171";
+        ctx.font = "bold 14px 'Segoe UI',sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(match ? "GT \u2713 Match" : "GT \u2717 Mismatch", gtX + 50, gtY + 15);
         ctx.restore();
       }
     }
@@ -1101,9 +1128,9 @@ _VIDEO_VIS_TEMPLATE = r"""<!DOCTYPE html>
   /* -- Stats cards -- */
   function renderStats(){
     var html = "";
-    html += card("Total Gaze Points", STATS.n_fixations);
-    html += card("Fixation Centers", STATS.n_fixation_points);
-    html += card("Saccade Points", STATS.n_saccade_points);
+    html += card("Total Gaze Samples", STATS.n_fixations);
+    html += card("Fixation Events", STATS.n_fixation_points);
+    html += card("Saccade Samples", STATS.n_saccade_points);
     html += card("Duration", STATS.duration_s+" s");
     if(STATS.f1_fixation !== undefined){
       html += card("F1 Fixation", STATS.f1_fixation, STATS.f1_fixation>=0.90);

@@ -111,7 +111,7 @@ class EyeTrackingVisualizer:
 
     Methods:
         plot_gaze_points_and_fixations(gaze_data, bg_image_path=None, aois=None, show_attach=True, attach_type='bbox'):
-            Visualizes gaze points and fixations from eye-tracking data using Plotly.
+            Visualizes gaze samples and fixations from eye-tracking data using Plotly.
         plot_gaze_with_time_scrolling(output_dir, bg_image_path=None, aois=None, time_window_ms=5000, step_ms=100):
             Creates an interactive time-scrollable visualization of gaze data and fixations.
     """

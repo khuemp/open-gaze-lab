@@ -23,18 +23,14 @@ function NumericInput({ id, value, onChange, placeholder, className, allowDecima
         e.preventDefault();
     };
 
-    const handlePaste = (e) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-        let pattern = allowDecimal ? /[^\d.]/g : /[^\d]/g;
-        if (allowNegative) pattern = allowDecimal ? /[^\d.-]/g : /[^\d-]/g;
-        const cleanedText = pastedText.replace(pattern, '');
-        const newValue = value.substring(0, e.target.selectionStart) + cleanedText + value.substring(e.target.selectionEnd);
-        onChange(newValue);
-    };
-
     const handleChange = (e) => {
-        onChange(e.target.value);
+        const nextValue = e.target.value;
+        let pattern = allowDecimal ? /^\d*\.?\d*$/ : /^\d*$/;
+        if (allowNegative) pattern = allowDecimal ? /^-?\d*\.?\d*$/ : /^-?\d*$/;
+
+        if (pattern.test(nextValue)) {
+            onChange(nextValue);
+        }
     };
 
     return (
@@ -45,7 +41,6 @@ function NumericInput({ id, value, onChange, placeholder, className, allowDecima
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
             placeholder={placeholder}
             className={className}
         />
@@ -53,32 +48,38 @@ function NumericInput({ id, value, onChange, placeholder, className, allowDecima
 }
 
 function App() {
-    // Mode toggle
-    const [mode, setMode] = useState('static'); // 'static' | 'headmounted'
+    const appendIfPresent = (formData, key, value) => {
+        if (value !== '') {
+            formData.append(key, value);
+        }
+    };
 
-    // Static mode state
+    // Mode toggle
+    const [mode, setMode] = useState('stationary'); // 'stationary' | 'headmounted'
+
+    // Stationary mode state
     const [file, setFile] = useState(null);
     const [backgroundImage, setBackgroundImage] = useState(null);
-    const [resolution, setResolution] = useState('2560,1440');
-    const [minFixationDuration, setMinFixationDuration] = useState('50');
-    const [detectThreshold, setDetectThreshold] = useState('125');
-    const [algorithm, setAlgorithm] = useState('idt');
-    const [samplingRate, setSamplingRate] = useState('250');
+    const [resolution, setResolution] = useState('');
+    const [minFixationDuration, setMinFixationDuration] = useState('');
+    const [detectThreshold, setDetectThreshold] = useState('');
+    const [algorithm, setAlgorithm] = useState('');
+    const [samplingRate, setSamplingRate] = useState('');
     const [fixationMergeThreshold, setFixationMergeThreshold] = useState('');
     const [adapt, setAdapt] = useState(false);
-    const [yOrigin, setYOrigin] = useState('top-left');
+    const [yOrigin, setYOrigin] = useState('');
 
     // Head-mounted mode state
     const [datasetZip, setDatasetZip] = useState(null);
     const [videoFile, setVideoFile] = useState(null);
-    const [hmResolution, setHmResolution] = useState('1088,1080');
-    const [hmMinFixation, setHmMinFixation] = useState('50');
-    const [hmThreshold, setHmThreshold] = useState('1.0');
-    const [hmSamplingRate, setHmSamplingRate] = useState('248');
-    const [hmAdapt, setHmAdapt] = useState(true);
+    const [hmResolution, setHmResolution] = useState('');
+    const [hmMinFixation, setHmMinFixation] = useState('');
+    const [hmThreshold, setHmThreshold] = useState('');
+    const [hmSamplingRate, setHmSamplingRate] = useState('');
+    const [hmAdapt, setHmAdapt] = useState(false);
 
     // Shared state
-    const [staticResults, setStaticResults] = useState(null);
+    const [stationaryResults, setStationaryResults] = useState(null);
     const [hmResults, setHmResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -98,15 +99,6 @@ function App() {
     };
 
     const handleProcessHeadMounted = async () => {
-        if (!datasetZip) {
-            setError('Please select a dataset ZIP file');
-            return;
-        }
-        if (!videoFile) {
-            setError('Please select an MP4 video file');
-            return;
-        }
-
         setLoading(true);
         setError(null);
         setHmResults(null);
@@ -115,10 +107,10 @@ function App() {
             const formData = new FormData();
             formData.append('dataset_zip', datasetZip);
             formData.append('video', videoFile);
-            formData.append('resolution', hmResolution);
-            formData.append('min_fixation_duration', hmMinFixation);
-            formData.append('detect_threshold', hmThreshold);
-            formData.append('sampling_rate', hmSamplingRate);
+            appendIfPresent(formData, 'resolution', hmResolution);
+            appendIfPresent(formData, 'min_fixation_duration', hmMinFixation);
+            appendIfPresent(formData, 'detect_threshold', hmThreshold);
+            appendIfPresent(formData, 'sampling_rate', hmSamplingRate);
             formData.append('adapt', hmAdapt.toString());
 
             const response = await fetch('http://127.0.0.1:5000/api/upload-video', {
@@ -134,16 +126,13 @@ function App() {
             const data = await response.json();
             setHmResults(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'Error processing video data');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleProcess = async () => {
-        if (mode === 'headmounted') {
-            return handleProcessHeadMounted();
-        }
+    const handleProcessStationary = async () => {
         if (!file) {
             setError('Please select a CSV file first');
             return;
@@ -151,21 +140,19 @@ function App() {
 
         setLoading(true);
         setError(null);
-        setStaticResults(null);
+        setStationaryResults(null);
 
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('resolution', resolution);
-            formData.append('min_fixation_duration', minFixationDuration);
-            formData.append('detect_threshold', detectThreshold);
-            formData.append('algorithm', algorithm);
-            formData.append('sampling_rate', samplingRate);
-            if (fixationMergeThreshold) {
-                formData.append('fixation_merge_threshold', fixationMergeThreshold);
-            }
+            appendIfPresent(formData, 'resolution', resolution);
+            appendIfPresent(formData, 'min_fixation_duration', minFixationDuration);
+            appendIfPresent(formData, 'detect_threshold', detectThreshold);
+            appendIfPresent(formData, 'algorithm', algorithm);
+            appendIfPresent(formData, 'sampling_rate', samplingRate);
+            appendIfPresent(formData, 'fixation_merge_threshold', fixationMergeThreshold);
             formData.append('adapt', adapt.toString());
-            formData.append('y_origin', yOrigin);
+            appendIfPresent(formData, 'y_origin', yOrigin);
             if (backgroundImage) {
                 formData.append('background_image', backgroundImage);
             }
@@ -181,24 +168,32 @@ function App() {
             }
 
             const data = await response.json();
-            setStaticResults(data);
+            setStationaryResults(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'Error processing gaze data');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleProcess = async () => {
+        if (mode === 'headmounted') {
+            return handleProcessHeadMounted();
+        }
+
+        return handleProcessStationary();
+    };
+
     return (
         <div className="container">
             <header className="header">
-                <h1>GazeInteract</h1>
+                <h1>OpenGazeLab</h1>
                 <div className="mode-toggle">
                     <button
-                        className={`mode-btn ${mode === 'static' ? 'active' : ''}`}
-                        onClick={() => handleModeSwitch('static')}
+                        className={`mode-btn ${mode === 'stationary' ? 'active' : ''}`}
+                        onClick={() => handleModeSwitch('stationary')}
                     >
-                        Static Eye Tracker
+                        Stationary Eye Tracker
                     </button>
                     <button
                         className={`mode-btn ${mode === 'headmounted' ? 'active' : ''}`}
@@ -210,7 +205,7 @@ function App() {
             </header>
 
             <main className="main-content">
-                {mode === 'static' ? (
+                {mode === 'stationary' ? (
                     <React.Fragment>
                         <div className="panel">
                             <div className="upload-row">
@@ -235,6 +230,7 @@ function App() {
                                                 onChange={(e) => setAlgorithm(e.target.value)}
                                                 className="input-field"
                                             >
+                                                <option value="">Select algorithm</option>
                                                 <option value="idt">I-DT</option>
                                                 <option value="ivt">I-VT</option>
                                             </select>
@@ -247,6 +243,7 @@ function App() {
                                                 onChange={(e) => setYOrigin(e.target.value)}
                                                 className="input-field"
                                             >
+                                                <option value="">Select origin</option>
                                                 <option value="top-left">Top-Left</option>
                                                 <option value="top-right">Top-Right</option>
                                                 <option value="bottom-left">Bottom-Left</option>
@@ -257,7 +254,7 @@ function App() {
                                 </div>
 
                                 <div className="control-group">
-                                    <label htmlFor="resolution">Display Resolution (WxH)</label>
+                                    <label htmlFor="resolution">Screen Resolution (W,H)</label>
                                     <input
                                         id="resolution"
                                         type="text"
@@ -274,6 +271,7 @@ function App() {
                                         id="sampling-rate"
                                         value={samplingRate}
                                         onChange={setSamplingRate}
+                                        placeholder="250"
                                         className="input-field"
                                     />
                                 </div>
@@ -284,6 +282,7 @@ function App() {
                                         id="min-fixation"
                                         value={minFixationDuration}
                                         onChange={setMinFixationDuration}
+                                        placeholder="50"
                                         className="input-field"
                                     />
                                 </div>
@@ -294,6 +293,7 @@ function App() {
                                         id="detect-threshold"
                                         value={detectThreshold}
                                         onChange={setDetectThreshold}
+                                        placeholder="125"
                                         className="input-field"
                                     />
                                 </div>
@@ -351,7 +351,7 @@ function App() {
                             <h2>Detection Parameters</h2>
                             <div className="params-grid">
                                 <div className="control-group">
-                                    <label htmlFor="hm-resolution">Video Resolution (WxH)</label>
+                                    <label htmlFor="hm-resolution">Screen Resolution (W,H)</label>
                                     <input
                                         id="hm-resolution"
                                         type="text"
@@ -368,6 +368,7 @@ function App() {
                                         id="hm-sampling-rate"
                                         value={hmSamplingRate}
                                         onChange={setHmSamplingRate}
+                                        placeholder="30"
                                         className="input-field"
                                     />
                                 </div>
@@ -378,6 +379,7 @@ function App() {
                                         id="hm-min-fixation"
                                         value={hmMinFixation}
                                         onChange={setHmMinFixation}
+                                        placeholder="50"
                                         className="input-field"
                                     />
                                 </div>
@@ -388,6 +390,7 @@ function App() {
                                         id="hm-threshold"
                                         value={hmThreshold}
                                         onChange={setHmThreshold}
+                                        placeholder="1.0"
                                         className="input-field"
                                     />
                                 </div>
@@ -411,7 +414,7 @@ function App() {
                                 onClick={handleProcess}
                                 disabled={loading || !datasetZip || !videoFile}
                             >
-                                {loading ? 'Processing...' : 'Process Video Data'}
+                                {loading ? 'Processing...' : 'Process Gaze Data'}
                             </button>
                         </div>
                     </React.Fragment>
@@ -421,7 +424,7 @@ function App() {
 
                 {loading && <div className="loading-spinner">Processing...</div>}
 
-                {staticResults && mode === 'static' && <ResultsDisplay results={staticResults} />}
+                {stationaryResults && mode === 'stationary' && <ResultsDisplay results={stationaryResults} />}
                 {hmResults && mode === 'headmounted' && <VideoResultsDisplay results={hmResults} />}
             </main>
         </div>
@@ -473,7 +476,7 @@ function FileUpload({ onFileSelect, fileName }) {
 
     return (
         <div className="file-upload">
-            <h2>Upload Gaze Data</h2>
+            <h2>Gaze Data</h2>
             <div
                 className={`upload-area ${isDragging ? 'dragging' : ''}`}
                 onDragOver={handleDragOver}
@@ -613,21 +616,21 @@ function ResultsDisplay({ results }) {
 
             <div className="results-grid">
                 <div className="result-card">
-                    <p className="result-label">Total Gaze Points</p>
+                    <p className="result-label">Total Gaze Samples</p>
                     <p className="result-value">
                         {results.result?.num_events || 0}
                     </p>
                 </div>
 
                 <div className="result-card">
-                    <p className="result-label">Fixation Points</p>
+                    <p className="result-label">Fixation Samples</p>
                     <p className="result-value">
                         {results.result?.num_fixations || 0}
                     </p>
                 </div>
 
                 <div className="result-card">
-                    <p className="result-label">Saccade Points</p>
+                    <p className="result-label">Saccade Samples</p>
                     <p className="result-value">
                         {results.result?.num_saccades || 0}
                     </p>
@@ -648,7 +651,7 @@ function ResultsDisplay({ results }) {
                 </div>
 
                 <div className="result-card">
-                    <p className="result-label">Fixation Centers</p>
+                    <p className="result-label">Fixation Events</p>
                     <p className="result-value">
                         {results.result?.num_fixation_points || 0}
                     </p>
@@ -670,10 +673,10 @@ function ResultsDisplay({ results }) {
 
             {results.result?.plot_file && (
                 <div className="plot-container">
-                    <h3>Static Visualization</h3>
+                    <h3>Stationary Visualization</h3>
                     <iframe
                         src={`http://127.0.0.1:5000/api/plot/${results.filename}`}
-                        title="Static Plot"
+                        title="Stationary Plot"
                         className="plot-iframe"
                     />
                 </div>
@@ -708,7 +711,7 @@ function DatasetZipUpload({ onFileSelect, fileName }) {
     };
     return (
         <div className="file-upload">
-            <h2>Dataset (.npy ZIP)</h2>
+            <h2>Dataset</h2>
             <div className={`upload-area ${isDragging ? 'dragging' : ''}`}
                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                  onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
@@ -722,8 +725,8 @@ function DatasetZipUpload({ onFileSelect, fileName }) {
                             <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                         </svg>
                     </div>
-                    <p className="upload-text">{fileName ? `Selected: ${fileName}` : 'Select dataset ZIP'}</p>
-                    <p className="upload-hint">Contains .npy files (gaze, optic_flow, etc.)</p>
+                    <p className="upload-text">{fileName ? `Selected: ${fileName}` : 'Select ZIP (.npy) dataset'}</p>
+                    <p className="upload-hint">gaze, time_gaze, optic_flow, time_optic_flow, time_scene_camera, (gt_labels)</p>
                 </label>
             </div>
             {fileName && <div className="file-selected">Dataset ready</div>}
@@ -746,7 +749,7 @@ function VideoUpload({ onFileSelect, fileName }) {
     };
     return (
         <div className="file-upload">
-            <h2>Scene Camera Video</h2>
+            <h2>Scene Video</h2>
             <div className={`upload-area ${isDragging ? 'dragging' : ''}`}
                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                  onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
@@ -776,7 +779,7 @@ function VideoResultsDisplay({ results }) {
     return (
         <div className="results-container">
             <div className="results-header">
-                <h2>Head-Mounted Detection Results</h2>
+                <h2>Detection Results</h2>
                 {results.result?.events_file && (
                     <a href={`http://127.0.0.1:5000/api/results/${results.filename}`}
                        className="download-button" download>
@@ -787,24 +790,20 @@ function VideoResultsDisplay({ results }) {
 
             <div className="results-grid hm-results-grid">
                 <div className="result-card">
-                    <p className="result-label">Total Gaze Points</p>
+                    <p className="result-label">Total Gaze Samples</p>
                     <p className="result-value">{results.result?.num_events || 0}</p>
                 </div>
                 <div className="result-card">
-                    <p className="result-label">Fixation Points</p>
+                    <p className="result-label">Fixation Samples</p>
                     <p className="result-value">{results.result?.num_fixations || 0}</p>
                 </div>
                 <div className="result-card">
-                    <p className="result-label">Saccade Points</p>
+                    <p className="result-label">Saccade Samples</p>
                     <p className="result-value">{results.result?.num_saccades || 0}</p>
                 </div>
                 <div className="result-card">
-                    <p className="result-label">Fixation Centers</p>
+                    <p className="result-label">Fixation Events</p>
                     <p className="result-value">{results.result?.num_fixation_centers || 0}</p>
-                </div>
-                <div className="result-card">
-                    <p className="result-label">Duration</p>
-                    <p className="result-value">{results.result?.duration_s != null ? results.result.duration_s + ' s' : 'N/A'}</p>
                 </div>
                 {results.result?.f1_fixation != null && (
                     <div className="result-card">
