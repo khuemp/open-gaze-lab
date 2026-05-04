@@ -62,7 +62,7 @@ function App() {
     const [backgroundImage, setBackgroundImage] = useState(null);
     const [resolution, setResolution] = useState('');
     const [minFixationDuration, setMinFixationDuration] = useState('');
-    const [detectThreshold, setDetectThreshold] = useState('');
+    const [detectionThreshold, setDetectionThreshold] = useState('');
     const [algorithm, setAlgorithm] = useState('');
     const [samplingRate, setSamplingRate] = useState('');
     const [fixationMergeThreshold, setFixationMergeThreshold] = useState('');
@@ -109,7 +109,7 @@ function App() {
             formData.append('video', videoFile);
             appendIfPresent(formData, 'resolution', hmResolution);
             appendIfPresent(formData, 'min_fixation_duration', hmMinFixation);
-            appendIfPresent(formData, 'detect_threshold', hmThreshold);
+            appendIfPresent(formData, 'detection_threshold', hmThreshold);
             appendIfPresent(formData, 'sampling_rate', hmSamplingRate);
             formData.append('adapt', hmAdapt.toString());
 
@@ -147,7 +147,7 @@ function App() {
             formData.append('file', file);
             appendIfPresent(formData, 'resolution', resolution);
             appendIfPresent(formData, 'min_fixation_duration', minFixationDuration);
-            appendIfPresent(formData, 'detect_threshold', detectThreshold);
+            appendIfPresent(formData, 'detection_threshold', detectionThreshold);
             appendIfPresent(formData, 'algorithm', algorithm);
             appendIfPresent(formData, 'sampling_rate', samplingRate);
             appendIfPresent(formData, 'fixation_merge_threshold', fixationMergeThreshold);
@@ -164,7 +164,7 @@ function App() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `API error: ${response.statusText}`);
+                throw new Error(errorData.detail || errorData.error || `API error: ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -236,7 +236,7 @@ function App() {
                                             </select>
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            <label htmlFor="y-origin">Plot Origin</label>
+                                            <label htmlFor="y-origin">Y-Origin</label>
                                             <select
                                                 id="y-origin"
                                                 value={yOrigin}
@@ -291,8 +291,8 @@ function App() {
                                     <label htmlFor="detect-threshold">Detection Threshold</label>
                                     <NumericInput
                                         id="detect-threshold"
-                                        value={detectThreshold}
-                                        onChange={setDetectThreshold}
+                                        value={detectionThreshold}
+                                        onChange={setDetectionThreshold}
                                         placeholder="125"
                                         className="input-field"
                                     />

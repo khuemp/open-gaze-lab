@@ -135,7 +135,7 @@ Optionally upload a screenshot or stimulus image (PNG, JPG, BMP, GIF, WebP) to d
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | **Algorithm** | I-DT | Detection algorithm: `I-DT` or `I-VT` |
-| **Plot Origin** | Top-Left | Coordinate origin for visualization |
+| **Y-Origin** | Top-Left | Coordinate origin for visualization |
 | **Display Resolution** | 2560,1440 | Screen resolution in pixels (width,height) |
 | **Sampling Rate** | 250 Hz | Eye-tracker sampling rate |
 | **Minimal Fixation Duration** | 50 ms | Minimum duration for valid fixation |
