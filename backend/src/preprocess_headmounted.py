@@ -64,21 +64,6 @@ def load_npy_dataset(zip_path: str, sampling_rate_hz: float):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def load_npy_dataset_from_dir(data_dir: str, sampling_rate_hz: float):
-    """Load a head-mounted dataset directly from a directory of .npy files.
-
-    Useful for testing with on-disk datasets.
-    """
-    paths = {
-        name: os.path.join(data_dir, name)
-        for name in _REQUIRED_NPY_FILES
-    }
-    gt_path = os.path.join(data_dir, "gt_labels.npy")
-    if os.path.exists(gt_path):
-        paths["gt_labels.npy"] = gt_path
-    return _load_from_paths(paths, sampling_rate_hz)
-
-
 def extract_video_metadata(video_path: str) -> dict:
     """Read fps / resolution / duration from a video file via OpenCV."""
     import cv2

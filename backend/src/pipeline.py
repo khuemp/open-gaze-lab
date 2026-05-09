@@ -125,10 +125,14 @@ class EventDetection:
     # Detection
     # ------------------------------------------------------------------
 
-    def detect_event(self, min_fixation_duration=50, algorithm=None,
-                     detection_threshold=150.0, fixation_merge_threshold=None,
-                     adapt=False, tuning_parameter=0.1, sampling_rate=None):
+    def detect_event(self, min_fixation_duration, algorithm, detection_threshold,
+                     sampling_rate, fixation_merge_threshold=None,
+                     adapt=False, tuning_parameter=0.1):
         """Run fixation/saccade detection on ``self.gaze_data``.
+
+        All numerical parameters are required and must be supplied by the caller
+        (typically validated at the API/form layer). Toggles (``fixation_merge_threshold``,
+        ``adapt``) keep their off-defaults.
 
         Returns ``(events_df, threshold_used)`` or ``(None, None)`` on failure.
         """
@@ -184,10 +188,9 @@ class EventDetection:
 
         return data, threshold_used
 
-    def process_event(self, min_fixation_duration=50, algorithm=None,
-                      fixation_merge_threshold: float = None,
-                      detection_threshold=150.0, adapt=False,
-                      tuning_parameter=0.1, sampling_rate: float = None,
+    def process_event(self, min_fixation_duration, algorithm, detection_threshold,
+                      sampling_rate, fixation_merge_threshold: float = None,
+                      adapt=False, tuning_parameter=0.1,
                       correct_timestamps_flag: bool = True):
         """Run the full detection + cleaning pipeline.
 
@@ -195,15 +198,16 @@ class EventDetection:
         Returns the cleaned events DataFrame, or ``None`` on failure.
 
         Args:
-            min_fixation_duration: Minimum fixation duration in ms.
-            algorithm: ``"idt"`` or ``"ivt"``.
+            min_fixation_duration: Minimum fixation duration in ms (required).
+            algorithm: ``"idt"`` or ``"ivt"`` (required).
+            detection_threshold: Initial threshold — px for I-DT, px/ms for I-VT (required).
+            sampling_rate: Recording sampling rate in Hz (required; pass ``None``
+                explicitly only when calling for legacy data without preprocessing).
             fixation_merge_threshold: If set, merge fixations within this
                 many pixels of each other.
-            detection_threshold: Initial threshold (px for I-DT, px/ms for I-VT).
             adapt: Enable adaptive threshold (per-sample with flow data,
                 otherwise MAD-based fallback).
             tuning_parameter: MAD-based adaptation factor.
-            sampling_rate: Recording sampling rate in Hz.
             correct_timestamps_flag: Apply uniform-interval timestamp
                 correction (default ``True``). Set ``False`` for datasets
                 with already-accurate timestamps (e.g. .npy from Pupil

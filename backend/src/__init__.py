@@ -21,7 +21,6 @@ from .preprocess_csv import (
 from .preprocess_headmounted import (
     extract_video_metadata,
     load_npy_dataset,
-    load_npy_dataset_from_dir,
 )
 from .visualization import (
     generate_video_gaze_visualization,
@@ -62,7 +61,6 @@ __all__ = [
     "detect_if_normalized",
     # Head-mounted preprocessing
     "load_npy_dataset",
-    "load_npy_dataset_from_dir",
     "extract_video_metadata",
     # Visualization
     "generate_video_gaze_visualization",

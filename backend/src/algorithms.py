@@ -120,13 +120,14 @@ def _record_fixation(arrays, start_idx, end_idx, cx, cy, window_duration, fixati
 # I-DT (dispersion threshold)
 # ---------------------------------------------------------------------------
 
-def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50,
-                 adapt=False, tuning_parameter=0.1, sampling_rate=None):
+def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, sampling_rate,
+                 adapt=False, tuning_parameter=0.1):
     """I-DT (dispersion threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
     runs and per-sample dispersion is read from ``rel_dispersion``;
     otherwise the legacy expanding-window dispersion on raw coordinates is used.
+    Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
     result_data, dispersion_threshold, preprocess_meta, arrays = prepare_classification_data(
         gaze_data, dispersion_threshold, adapt, tuning_parameter,
@@ -198,13 +199,14 @@ def classify_idt(gaze_data, dispersion_threshold=150.0, min_fixation_duration=50
 # I-VT (velocity threshold)
 # ---------------------------------------------------------------------------
 
-def classify_ivt(gaze_data, velocity_threshold=0.3, min_fixation_duration=50,
-                 adapt=False, tuning_parameter=0.1, sampling_rate=None):
+def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_rate,
+                 adapt=False, tuning_parameter=0.1):
     """I-VT (velocity threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
     runs and the per-sample velocity column ``vel_rel_mag`` (or ``vel_mag``
     without flow) is used; otherwise the legacy point-to-point velocity is used.
+    Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
     result_data, velocity_threshold, preprocess_meta, arrays = prepare_classification_data(
         gaze_data, velocity_threshold, adapt, tuning_parameter,
