@@ -75,6 +75,7 @@ function App() {
     const [hmResolution, setHmResolution] = useState('');
     const [hmMinFixation, setHmMinFixation] = useState('');
     const [hmThreshold, setHmThreshold] = useState('');
+    const [hmAlgorithm, setHmAlgorithm] = useState('');
     const [hmSamplingRate, setHmSamplingRate] = useState('');
     const [hmAdapt, setHmAdapt] = useState(false);
 
@@ -110,6 +111,7 @@ function App() {
             appendIfPresent(formData, 'resolution', hmResolution);
             appendIfPresent(formData, 'min_fixation_duration', hmMinFixation);
             appendIfPresent(formData, 'detection_threshold', hmThreshold);
+            appendIfPresent(formData, 'algorithm', hmAlgorithm);
             appendIfPresent(formData, 'sampling_rate', hmSamplingRate);
             formData.append('adapt', hmAdapt.toString());
 
@@ -351,6 +353,20 @@ function App() {
                             <h2>Detection Parameters</h2>
                             <div className="params-grid">
                                 <div className="control-group">
+                                    <label htmlFor="hm-algorithm">Algorithm</label>
+                                    <select
+                                        id="hm-algorithm"
+                                        value={hmAlgorithm}
+                                        onChange={(e) => setHmAlgorithm(e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="">Select algorithm</option>
+                                        <option value="idt">I-DT</option>
+                                        <option value="ivt">I-VT</option>
+                                    </select>
+                                </div>
+
+                                <div className="control-group">
                                     <label htmlFor="hm-resolution">Screen Resolution (W,H)</label>
                                     <input
                                         id="hm-resolution"
@@ -368,7 +384,7 @@ function App() {
                                         id="hm-sampling-rate"
                                         value={hmSamplingRate}
                                         onChange={setHmSamplingRate}
-                                        placeholder="30"
+                                        placeholder="200"
                                         className="input-field"
                                     />
                                 </div>
@@ -379,7 +395,7 @@ function App() {
                                         id="hm-min-fixation"
                                         value={hmMinFixation}
                                         onChange={setHmMinFixation}
-                                        placeholder="50"
+                                        placeholder="54"
                                         className="input-field"
                                     />
                                 </div>
@@ -390,7 +406,7 @@ function App() {
                                         id="hm-threshold"
                                         value={hmThreshold}
                                         onChange={setHmThreshold}
-                                        placeholder="1.0"
+                                        placeholder="30"
                                         className="input-field"
                                     />
                                 </div>

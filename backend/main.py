@@ -124,8 +124,6 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
 
-    if algorithm not in ("idt", "ivt"):
-        raise HTTPException(status_code=400, detail="Invalid algorithm. Must be one of: idt, ivt")
     if y_origin not in ("top-left", "top-right", "bottom-left", "bottom-right"):
         raise HTTPException(
             status_code=400,
@@ -281,6 +279,7 @@ async def upload_video_dataset(
     resolution: Optional[str] = Form(None),
     min_fixation_duration: Optional[int] = Form(None),
     detection_threshold: Optional[float] = Form(None),
+    algorithm: Optional[str] = Form(None),
     sampling_rate: Optional[int] = Form(None),
     adapt: bool = Form(False),
 ):
@@ -336,7 +335,7 @@ async def upload_video_dataset(
     detector.process_event(
         min_fixation_duration=min_fixation_duration,
         detection_threshold=detection_threshold,
-        algorithm="ivt",
+        algorithm=algorithm,
         sampling_rate=sampling_rate,
         adapt=adapt,
         correct_timestamps_flag=False,
@@ -387,6 +386,7 @@ async def upload_video_dataset(
             "num_fixation_centers": int(detector.event_data_df["fixation_id"].dropna().nunique()),
             "fps": fps,
             "video_resolution": f"{vid_w}x{vid_h}",
+            "algorithm": algorithm,
             "has_gt": gt_labels is not None,
             "best_threshold": getattr(detector, "best_threshold", None),
             "f1_fixation": f1_fixation,
