@@ -127,7 +127,7 @@ class EventDetection:
 
     def detect_event(self, min_fixation_duration, algorithm, detection_threshold,
                      sampling_rate, fixation_merge_threshold=None,
-                     adapt=False, tuning_parameter=0.1):
+                     adapt=False):
         """Run fixation/saccade detection on ``self.gaze_data``.
 
         All numerical parameters are required and must be supplied by the caller
@@ -155,7 +155,6 @@ class EventDetection:
                     dispersion_threshold=detection_threshold,
                     min_fixation_duration=min_fixation_duration,
                     adapt=adapt,
-                    tuning_parameter=tuning_parameter,
                     sampling_rate=sampling_rate,
                 )
             elif algorithm == "ivt":
@@ -164,7 +163,6 @@ class EventDetection:
                     velocity_threshold=detection_threshold,
                     min_fixation_duration=min_fixation_duration,
                     adapt=adapt,
-                    tuning_parameter=tuning_parameter,
                     sampling_rate=sampling_rate,
                 )
             else:
@@ -190,7 +188,7 @@ class EventDetection:
 
     def process_event(self, min_fixation_duration, algorithm, detection_threshold,
                       sampling_rate, fixation_merge_threshold: float = None,
-                      adapt=False, tuning_parameter=0.1,
+                      adapt=False,
                       correct_timestamps_flag: bool = True):
         """Run the full detection + cleaning pipeline.
 
@@ -207,7 +205,6 @@ class EventDetection:
                 many pixels of each other.
             adapt: Enable adaptive threshold (per-sample with flow data,
                 otherwise MAD-based fallback).
-            tuning_parameter: MAD-based adaptation factor.
             correct_timestamps_flag: Apply uniform-interval timestamp
                 correction (default ``True``). Set ``False`` for datasets
                 with already-accurate timestamps (e.g. .npy from Pupil
@@ -222,7 +219,6 @@ class EventDetection:
             fixation_merge_threshold=fixation_merge_threshold,
             detection_threshold=detection_threshold,
             adapt=adapt,
-            tuning_parameter=tuning_parameter,
             sampling_rate=sampling_rate,
         )
 

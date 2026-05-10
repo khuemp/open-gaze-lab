@@ -12,8 +12,8 @@ their legacy point-to-point velocity / expanding-window dispersion paths.
 import numpy as np
 import pandas as pd
 
-from .feature_extraction import preprocess_gaze_data
-from .utils import compute_velocity, compute_mad
+from .feature_extraction import preprocess_gaze_data, apply_adaptive_threshold
+from .utils import compute_velocity
 
 
 # ---------------------------------------------------------------------------
@@ -23,16 +23,17 @@ from .utils import compute_velocity, compute_mad
 def prepare_classification_data(gaze_data: pd.DataFrame,
                                 threshold: float,
                                 adapt: bool = False,
-                                tuning_parameter: float = 0.1,
-                                is_velocity_based: bool = True,
-                                sampling_rate: float = None) -> tuple:
+                                *,
+                                is_velocity_based: bool,
+                                sampling_rate: float) -> tuple:
     """Build the shared inputs for ``classify_idt`` / ``classify_ivt``.
 
     With *sampling_rate* and optical-flow columns the I-VAT+Frel pipeline
-    runs in :func:`preprocess_gaze_data`. Otherwise only output buffers are
-    allocated, optionally with a MAD-based threshold adaptation.
+    runs in :func:`preprocess_gaze_data`. When *adapt* is set,
+    :func:`apply_adaptive_threshold` then picks the flow-RMS per-sample path
+    (writing a ``threshold`` column) or the MAD scalar fallback automatically.
 
-    Returns ``(result_data, threshold, preprocess_meta, arrays)``.
+    Returns ``(result_data, threshold, preprocess_meta, has_adaptive_threshold, arrays)``.
     """
     result_data = gaze_data.copy()
     n = len(result_data)
@@ -44,24 +45,15 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
             result_data,
             sampling_rate,
             is_velocity_based=is_velocity_based,
-            base_threshold=threshold,
-            adapt=adapt,
-            gain=1.0,
-            window_size_ms=500.0,
-            savgol_window_ms=55.0,
         )
 
-    # MAD fallback only when no per-sample adaptive threshold was produced.
-    if adapt and (preprocess_meta is None or not preprocess_meta.get("has_adaptive_threshold", False)):
-        velocity = compute_velocity(pd.DataFrame({
-            "x": result_data["x"].values,
-            "y": result_data["y"].values,
-            "timestamp": result_data["timestamp"].values,
-        }))
-        if len(velocity) > 0:
-            mad_velocity = compute_mad(velocity)
-            if mad_velocity > 0:
-                threshold = threshold * (1 + tuning_parameter * mad_velocity)
+    has_adaptive_threshold = False
+    if adapt:
+        threshold, has_adaptive_threshold = apply_adaptive_threshold(
+            result_data,
+            base_threshold=threshold,
+            sampling_rate=sampling_rate
+        )
 
     arrays = {
         "event_type":     np.full(n, "Saccade", dtype="U10"),
@@ -71,7 +63,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
         "fixation_ids":   np.full(n, np.nan),
         "saccade_ids":    np.full(n, np.nan),
     }
-    return result_data, threshold, preprocess_meta, arrays
+    return result_data, threshold, preprocess_meta, has_adaptive_threshold, arrays
 
 
 def finalize_result_dataframe(result_data, arrays):
@@ -121,7 +113,7 @@ def _record_fixation(arrays, start_idx, end_idx, cx, cy, window_duration, fixati
 # ---------------------------------------------------------------------------
 
 def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, sampling_rate,
-                 adapt=False, tuning_parameter=0.1):
+                 adapt=False):
     """I-DT (dispersion threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
@@ -129,8 +121,8 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     otherwise the legacy expanding-window dispersion on raw coordinates is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
-    result_data, dispersion_threshold, preprocess_meta, arrays = prepare_classification_data(
-        gaze_data, dispersion_threshold, adapt, tuning_parameter,
+    result_data, dispersion_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
+        gaze_data, dispersion_threshold, adapt,
         is_velocity_based=False, sampling_rate=sampling_rate,
     )
 
@@ -140,14 +132,11 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     t = result_data["timestamp"].values
     cx, cy = _select_centroid_coords(result_data, x, y)
 
-    if preprocess_meta is not None:
-        disp_values = result_data[preprocess_meta["disp_col"]].fillna(0).values
-        has_adaptive = preprocess_meta["has_adaptive_threshold"]
-        adaptive_thresh = result_data["threshold"].values if has_adaptive else None
-    else:
-        disp_values = None
-        has_adaptive = False
-        adaptive_thresh = None
+    disp_values = (
+        result_data[preprocess_meta["disp_col"]].fillna(0).values
+        if preprocess_meta is not None else None
+    )
+    adaptive_thresh = result_data["threshold"].values if has_adaptive else None
 
     start_idx = 0
     fixation_id = 1
@@ -200,7 +189,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
 # ---------------------------------------------------------------------------
 
 def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_rate,
-                 adapt=False, tuning_parameter=0.1):
+                 adapt=False):
     """I-VT (velocity threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
@@ -208,8 +197,8 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
     without flow) is used; otherwise the legacy point-to-point velocity is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
-    result_data, velocity_threshold, preprocess_meta, arrays = prepare_classification_data(
-        gaze_data, velocity_threshold, adapt, tuning_parameter,
+    result_data, velocity_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
+        gaze_data, velocity_threshold, adapt,
         is_velocity_based=True, sampling_rate=sampling_rate,
     )
 
@@ -221,12 +210,9 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
 
     if preprocess_meta is not None:
         velocity = result_data[preprocess_meta["vel_col"]].fillna(0).values
-        has_adaptive = preprocess_meta["has_adaptive_threshold"]
-        adaptive_thresh = result_data["threshold"].values if has_adaptive else None
     else:
         velocity = compute_velocity(pd.DataFrame({"x": x, "y": y, "timestamp": t}))
-        has_adaptive = False
-        adaptive_thresh = None
+    adaptive_thresh = result_data["threshold"].values if has_adaptive else None
 
     start_idx = 0
     fixation_id = 1

@@ -158,7 +158,7 @@ def clean_fixations(events_df):
     return events_df.sort_values(['timestamp']).reset_index(drop=True)
 
 
-def merge_fixations(gaze_data, fixation_merge_threshold=None):
+def merge_fixations(gaze_data, fixation_merge_threshold):
     """Merge consecutive fixations whose centroids are within the threshold.
 
     Coordinates of merged fixations are duration-weighted averages.

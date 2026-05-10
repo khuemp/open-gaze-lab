@@ -281,16 +281,20 @@ async def upload_video_dataset(
     resolution: Optional[str] = Form(None),
     min_fixation_duration: Optional[int] = Form(None),
     detection_threshold: Optional[float] = Form(None),
+    algorithm: Optional[str] = Form(None),
     sampling_rate: Optional[int] = Form(None),
     adapt: bool = Form(False),
 ):
     """Upload a .zip of .npy files + an .mp4 video for head-mounted processing."""
     _require_params(
         resolution=resolution,
+        algorithm=algorithm,
         sampling_rate=sampling_rate,
         min_fixation_duration=min_fixation_duration,
         detection_threshold=detection_threshold,
     )
+    if algorithm not in ("idt", "ivt"):
+        raise HTTPException(status_code=400, detail="Invalid algorithm. Must be one of: idt, ivt")
 
     if not dataset_zip.filename or not dataset_zip.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Dataset must be a .zip file")
@@ -337,7 +341,7 @@ async def upload_video_dataset(
     detector.process_event(
         min_fixation_duration=min_fixation_duration,
         detection_threshold=detection_threshold,
-        algorithm="ivt",
+        algorithm=algorithm,
         sampling_rate=sampling_rate,
         adapt=adapt,
         correct_timestamps_flag=False,

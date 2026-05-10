@@ -14,68 +14,16 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 
+from .utils import compute_velocity, compute_mad
+
 
 # ---------------------------------------------------------------------------
-# Column / segment helpers
+# Column helpers
 # ---------------------------------------------------------------------------
 
 def detect_flow_columns(df: pd.DataFrame) -> bool:
     """True when *df* has both ``flow_x`` and ``flow_y`` columns."""
     return "flow_x" in df.columns and "flow_y" in df.columns
-
-
-def find_temporal_segments(
-    df: pd.DataFrame,
-    sampling_rate: float,
-    gap_factor: float = 3.0,
-    time_col: str = "timestamp",
-) -> list:
-    """Identify contiguous temporal segments separated by large gaps.
-
-    Returns a list of ``(start, end)`` positional index pairs (``end`` is
-    exclusive, suitable for slicing). A gap is declared whenever the time
-    difference between consecutive rows exceeds ``gap_factor x expected_dt``
-    (default tolerates 3x jitter while catching real tracking loss).
-    """
-    timestamps = df[time_col].values
-    n = len(timestamps)
-    if n == 0:
-        return []
-
-    gap_threshold = gap_factor * (1000.0 / sampling_rate)
-    gap_indices = np.where(np.diff(timestamps) > gap_threshold)[0]
-
-    segments = []
-    seg_start = 0
-    for gi in gap_indices:
-        segments.append((seg_start, gi + 1))
-        seg_start = gi + 1
-    segments.append((seg_start, n))
-    return segments
-
-
-def _ensure_segments(df, segments, sampling_rate):
-    """Compute segments from *sampling_rate* if not already provided."""
-    if segments is None and sampling_rate is not None:
-        return find_temporal_segments(df, sampling_rate)
-    return segments
-
-
-def _nan_segment_boundaries(values: np.ndarray, segments: list,
-                            *, on_last: bool, on_first: bool) -> np.ndarray:
-    """Set NaN at segment boundaries to prevent diffs spanning gaps.
-
-    *on_last* nulls the last sample of every segment (where ``diff(-1)``
-    would look at the next segment); *on_first* nulls the first sample of
-    every segment except the very first.
-    """
-    n = len(values)
-    for seg_start, seg_end in segments:
-        if on_last and 0 <= seg_end - 1 and seg_end < n:
-            values[seg_end - 1] = np.nan
-        if on_first and seg_start > 0:
-            values[seg_start] = np.nan
-    return values
 
 
 # ---------------------------------------------------------------------------
@@ -85,15 +33,12 @@ def _nan_segment_boundaries(values: np.ndarray, segments: list,
 def apply_savgol_filter(
     df: pd.DataFrame,
     sampling_rate: float,
-    window_size_ms: float = 55,
+    window_size_ms: float = 55.0,
     polyorder: int = 3,
-    segments: list = None,
 ) -> pd.DataFrame:
-    """Apply a Savitzky-Golay low-pass filter to gaze coordinates per segment.
+    """Apply a Savitzky-Golay low-pass filter to gaze coordinates.
 
-    Adds ``filter_x`` and ``filter_y`` columns. The filter is applied
-    independently to each temporal segment so blink-spanning data is never
-    blended together.
+    Adds ``filter_x`` and ``filter_y`` columns.
     """
     frame_duration_ms = 1000.0 / sampling_rate
     window_size = int(window_size_ms // frame_duration_ms)
@@ -102,32 +47,23 @@ def apply_savgol_filter(
     if window_size % 2 == 0:
         window_size += 1
 
-    segments = _ensure_segments(df, segments, sampling_rate)
-
     x_raw = df["x"].values
     y_raw = df["y"].values
-    filter_x = x_raw.copy()
-    filter_y = y_raw.copy()
+    n = len(x_raw)
 
-    for seg_start, seg_end in segments:
-        seg_len = seg_end - seg_start
-        x_seg = np.where(np.isnan(x_raw[seg_start:seg_end]), 0, x_raw[seg_start:seg_end])
-        y_seg = np.where(np.isnan(y_raw[seg_start:seg_end]), 0, y_raw[seg_start:seg_end])
+    x_in = np.where(np.isnan(x_raw), 0, x_raw)
+    y_in = np.where(np.isnan(y_raw), 0, y_raw)
 
-        seg_win = window_size
-        if seg_win > seg_len:
-            seg_win = seg_len if seg_len % 2 == 1 else seg_len - 1
+    win = window_size
+    if win > n:
+        win = n if n % 2 == 1 else n - 1
 
-        if seg_len < polyorder + 2 or seg_win < polyorder + 2:
-            filter_x[seg_start:seg_end] = x_seg
-            filter_y[seg_start:seg_end] = y_seg
-            continue
-
-        filter_x[seg_start:seg_end] = savgol_filter(x_seg, window_length=seg_win, polyorder=polyorder)
-        filter_y[seg_start:seg_end] = savgol_filter(y_seg, window_length=seg_win, polyorder=polyorder)
-
-    df["filter_x"] = filter_x
-    df["filter_y"] = filter_y
+    if n < polyorder + 2 or win < polyorder + 2:
+        df["filter_x"] = x_in
+        df["filter_y"] = y_in
+    else:
+        df["filter_x"] = savgol_filter(x_in, window_length=win, polyorder=polyorder)
+        df["filter_y"] = savgol_filter(y_in, window_length=win, polyorder=polyorder)
     return df
 
 
@@ -137,17 +73,14 @@ def apply_savgol_filter(
 
 def compute_gaze_velocity(
     df: pd.DataFrame,
-    x_col: str = "x",
-    y_col: str = "y",
+    x_col: str,
+    y_col: str,
     time_col: str = "timestamp",
-    segments: list = None,
-    sampling_rate: float = None,
 ) -> pd.DataFrame:
     """Gaze velocity with a constant denominator (mean delta-t over the recording).
 
     Mirrors the research code's ``VelocityCalculator``. Using mean delta-t
-    rather than per-sample delta-t reduces noise from jitter. Velocities at
-    segment boundaries are nulled so the diff never spans a temporal gap.
+    rather than per-sample delta-t reduces noise from jitter.
 
     Adds ``x_vel``, ``y_vel``, ``vel_mag``.
     """
@@ -157,15 +90,10 @@ def compute_gaze_velocity(
 
     avg_delta = t_delta.mean()
     if avg_delta == 0 or np.isnan(avg_delta):
-        avg_delta = 1.0  # safety
+        avg_delta = 1.0
 
     x_vel = (x_delta / avg_delta).values
     y_vel = (y_delta / avg_delta).values
-
-    segments = _ensure_segments(df, segments, sampling_rate)
-    if segments is not None:
-        _nan_segment_boundaries(x_vel, segments, on_last=True, on_first=True)
-        _nan_segment_boundaries(y_vel, segments, on_last=True, on_first=True)
 
     df["x_vel"] = x_vel
     df["y_vel"] = y_vel
@@ -173,11 +101,7 @@ def compute_gaze_velocity(
     return df
 
 
-def compute_flow_velocity(
-    df: pd.DataFrame,
-    segments: list = None,
-    sampling_rate: float = None,
-) -> pd.DataFrame:
+def compute_flow_velocity(df: pd.DataFrame) -> pd.DataFrame:
     """Convert per-frame optical-flow displacements into velocities.
 
     Uses ``video_timestamp`` for delta-t when present (preferred — flow is
@@ -191,11 +115,6 @@ def compute_flow_velocity(
     fy = (df["flow_y"] / flow_t_delta).values
     fx = np.where(np.isinf(fx), 0, fx)
     fy = np.where(np.isinf(fy), 0, fy)
-
-    segments = _ensure_segments(df, segments, sampling_rate)
-    if segments is not None:
-        _nan_segment_boundaries(fx, segments, on_last=False, on_first=True)
-        _nan_segment_boundaries(fy, segments, on_last=False, on_first=True)
 
     df["flow_x_vel"] = fx
     df["flow_y_vel"] = fy
@@ -225,56 +144,74 @@ def _rolling_rms(series: pd.Series, window: int) -> pd.Series:
     )
 
 
-def compute_flow_window_rms(
-    df: pd.DataFrame,
-    window_size: int,
-    segments: list = None,
-    sampling_rate: float = None,
-) -> pd.DataFrame:
+def compute_flow_window_rms(df: pd.DataFrame, window_size: int) -> pd.DataFrame:
     """Rolling RMS of optical-flow velocity (head-motion strength indicator).
 
-    Per-segment when *segments* are provided so the window never spans a gap.
     Adds ``flow_rms_mag``.
     """
     window_size = max(1, window_size)
-    segments = _ensure_segments(df, segments, sampling_rate)
-
-    if segments is not None and len(segments) > 1:
-        rms_mag = np.zeros(len(df))
-        fx_vals = df["flow_x_vel"].values
-        fy_vals = df["flow_y_vel"].values
-        for seg_start, seg_end in segments:
-            seg_len = seg_end - seg_start
-            win = min(window_size, seg_len)
-            rx = _rolling_rms(pd.Series(fx_vals[seg_start:seg_end]), win)
-            ry = _rolling_rms(pd.Series(fy_vals[seg_start:seg_end]), win)
-            rms_mag[seg_start:seg_end] = np.hypot(rx.values, ry.values)
-        df["flow_rms_mag"] = rms_mag
-    else:
-        df["flow_rms_mag"] = np.hypot(
-            _rolling_rms(df["flow_x_vel"], window_size),
-            _rolling_rms(df["flow_y_vel"], window_size),
-        )
+    df["flow_rms_mag"] = np.hypot(
+        _rolling_rms(df["flow_x_vel"], window_size),
+        _rolling_rms(df["flow_y_vel"], window_size),
+    )
     return df
 
 
 def compute_adaptive_threshold(
     df: pd.DataFrame,
     base_threshold: float,
+    window_size: int,
     gain: float = 1.0,
-    window_size: int = 50,
-    segments: list = None,
-    sampling_rate: float = None,
 ) -> pd.DataFrame:
     """Per-sample threshold = ``base_threshold + gain x flow_rms_mag``.
 
     Computes ``flow_rms_mag`` first if missing. Adds ``threshold``.
     """
     if "flow_rms_mag" not in df.columns:
-        compute_flow_window_rms(df, window_size, segments=segments,
-                                sampling_rate=sampling_rate)
+        compute_flow_window_rms(df, window_size)
     df["threshold"] = base_threshold + gain * df["flow_rms_mag"]
     return df
+
+
+def apply_adaptive_threshold(
+    df: pd.DataFrame,
+    base_threshold: float,
+    *,
+    sampling_rate: float = None,
+    window_size_ms: float = 500.0,
+    tuning_parameter: float = 0.1,
+) -> tuple:
+    """Adapt the saccade threshold to local motion, picking a strategy by signal.
+
+    * **Flow-RMS, per-sample** when *df* already has ``flow_x_vel`` /
+      ``flow_y_vel`` and a sampling rate is given. Writes a per-sample
+      ``threshold`` column via :func:`compute_adaptive_threshold` and returns
+      ``(base_threshold, True)`` — the scalar is unused; the classifier reads
+      the per-sample column.
+    * **MAD scalar fallback** otherwise. Scales *base_threshold* by the MAD
+      of point-to-point gaze velocity and returns ``(adapted_threshold, False)``.
+    """
+    has_flow_vel = "flow_x_vel" in df.columns and "flow_y_vel" in df.columns
+
+    if has_flow_vel and sampling_rate is not None and sampling_rate > 0:
+        sample_duration_ms = 1000.0 / sampling_rate
+        rms_window_samples = int(window_size_ms / sample_duration_ms)
+        compute_adaptive_threshold(
+            df, base_threshold=base_threshold,
+            window_size=rms_window_samples,
+        )
+        return base_threshold, True
+
+    velocity = compute_velocity(pd.DataFrame({
+        "x": df["x"].values,
+        "y": df["y"].values,
+        "timestamp": df["timestamp"].values,
+    }))
+    if len(velocity) > 0:
+        mad_velocity = compute_mad(velocity)
+        if mad_velocity > 0:
+            return base_threshold * (1 + tuning_parameter * mad_velocity), False
+    return base_threshold, False
 
 
 # ---------------------------------------------------------------------------
@@ -283,12 +220,10 @@ def compute_adaptive_threshold(
 
 def compute_relative_dispersion(
     df: pd.DataFrame,
-    x_col: str = "x",
-    y_col: str = "y",
-    window_size: int = 5,
-    sample_duration_ms: float = 4.0,
-    segments: list = None,
-    sampling_rate: float = None,
+    x_col: str,
+    y_col: str,
+    window_size: int,
+    sample_duration_ms: float,
 ) -> pd.DataFrame:
     """Gaze dispersion relative to the optical-flow-integrated trajectory.
 
@@ -296,8 +231,7 @@ def compute_relative_dispersion(
     and backward from the centre to produce an "ideal" gaze trajectory (where
     gaze *would* be if it perfectly tracked background motion). The dispersion
     of actual gaze relative to this trajectory is
-    ``(max_rel_x - min_rel_x) + (max_rel_y - min_rel_y)``. Windows are clamped
-    to segment boundaries. Adds ``rel_dispersion``.
+    ``(max_rel_x - min_rel_x) + (max_rel_y - min_rel_y)``. Adds ``rel_dispersion``.
     """
     n = len(df)
     x_vals = df[x_col].values
@@ -307,20 +241,11 @@ def compute_relative_dispersion(
 
     rel_dispersion = np.zeros(n)
     half_w = window_size // 2
-
-    segments = _ensure_segments(df, segments, sampling_rate)
-    seg_starts = np.zeros(n, dtype=int)
-    seg_ends = np.full(n, n, dtype=int)
-    if segments is not None:
-        for s_start, s_end in segments:
-            seg_starts[s_start:s_end] = s_start
-            seg_ends[s_start:s_end] = s_end
-
     dt_s = sample_duration_ms / 1000.0
 
     for i in range(n):
-        start = max(seg_starts[i], i - half_w)
-        end = min(seg_ends[i], i + half_w + 1)
+        start = max(0, i - half_w)
+        end = min(n, i + half_w + 1)
         center_local = i - start
 
         wx = x_vals[start:end]
@@ -351,37 +276,19 @@ def compute_relative_dispersion(
 
 def compute_dispersion(
     df: pd.DataFrame,
-    x_col: str = "x",
-    y_col: str = "y",
-    window_size: int = 5,
-    segments: list = None,
-    sampling_rate: float = None,
+    x_col: str,
+    y_col: str,
+    window_size: int,
 ) -> pd.DataFrame:
     """Rolling spatial dispersion ``(max_x - min_x) + (max_y - min_y)``.
 
-    Per-segment when *segments* are provided. Adds ``dispersion``.
+    Adds ``dispersion``.
     """
-    segments = _ensure_segments(df, segments, sampling_rate)
     spread = lambda v: v.max() - v.min()
-
-    if segments is not None and len(segments) > 1:
-        disp = np.zeros(len(df))
-        x_vals = df[x_col].values
-        y_vals = df[y_col].values
-        for seg_start, seg_end in segments:
-            seg_len = seg_end - seg_start
-            win = min(window_size, seg_len)
-            sx = pd.Series(x_vals[seg_start:seg_end])
-            sy = pd.Series(y_vals[seg_start:seg_end])
-            xs = sx.rolling(win, center=True, min_periods=1).apply(spread, raw=True)
-            ys = sy.rolling(win, center=True, min_periods=1).apply(spread, raw=True)
-            disp[seg_start:seg_end] = xs.values + ys.values
-        df["dispersion"] = disp
-    else:
-        df["dispersion"] = (
-            df[x_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
-            + df[y_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
-        )
+    df["dispersion"] = (
+        df[x_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
+        + df[y_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
+    )
     return df
 
 
@@ -393,73 +300,56 @@ def preprocess_gaze_data(
     df: pd.DataFrame,
     sampling_rate: float,
     *,
-    is_velocity_based: bool = True,
-    base_threshold: float = 150.0,
-    adapt: bool = False,
-    gain: float = 1.0,
-    window_size_ms: float = 500.0,
-    savgol_window_ms: float = 55.0,
+    is_velocity_based: bool,
 ) -> dict:
-    """Run the I-VAT+Frel preprocessing pipeline on *df* (in-place).
+    """Run the I-VAT+Frel feature pipeline on *df* (in-place).
 
-    Only the columns the chosen classifier will actually consume are produced:
+    Only the columns the chosen classifier will consume are produced:
 
     * Always: Savitzky-Golay smoothing -> ``filter_x``/``filter_y``.
     * When flow is present: ``flow_x_vel``/``flow_y_vel`` (shared input
-      for relative velocity, relative dispersion, and the adaptive RMS).
+      for relative velocity, relative dispersion, and adaptive RMS).
     * For I-VT: ``vel_mag`` (and ``vel_rel_mag`` with flow).
     * For I-DT: ``dispersion`` (no flow) **or** ``rel_dispersion`` (with flow).
-    * If ``adapt`` and flow present: per-sample ``threshold`` column.
+
+    The adaptive threshold is applied separately by
+    :func:`apply_adaptive_threshold` after this pipeline runs.
 
     Returns metadata pointing at the column names to threshold against
-    (``vel_col`` / ``disp_col``) and whether ``threshold`` is per-sample.
+    (``vel_col`` / ``disp_col``).
     """
     has_flow = detect_flow_columns(df)
-    segments = find_temporal_segments(df, sampling_rate)
 
-    apply_savgol_filter(df, sampling_rate, window_size_ms=savgol_window_ms,
-                        segments=segments)
+    apply_savgol_filter(df, sampling_rate)
     coord_x, coord_y = "filter_x", "filter_y"
 
     if has_flow:
-        compute_flow_velocity(df, segments=segments)
+        compute_flow_velocity(df)
 
     vel_col = "vel_mag"
     disp_col = "dispersion"
 
     if is_velocity_based:
-        compute_gaze_velocity(df, x_col=coord_x, y_col=coord_y, segments=segments)
+        compute_gaze_velocity(df, x_col=coord_x, y_col=coord_y)
         if has_flow:
             compute_relative_velocity(df)
             vel_col = "vel_rel_mag"
     else:
         sample_duration_ms = 1000.0 / sampling_rate
-        window_size_samples = max(3, int(25.0 // sample_duration_ms))
+        window_size = int(25.0 / sample_duration_ms)
         if has_flow:
             compute_relative_dispersion(
                 df, x_col=coord_x, y_col=coord_y,
-                window_size=window_size_samples,
+                window_size=window_size,
                 sample_duration_ms=sample_duration_ms,
-                segments=segments,
             )
             disp_col = "rel_dispersion"
         else:
             compute_dispersion(df, x_col=coord_x, y_col=coord_y,
-                               window_size=window_size_samples, segments=segments)
-
-    has_adaptive_threshold = False
-    if adapt and has_flow:
-        sample_duration_ms = 1000.0 / sampling_rate
-        rms_window_samples = max(1, int(window_size_ms // sample_duration_ms))
-        compute_adaptive_threshold(
-            df, base_threshold=base_threshold, gain=gain,
-            window_size=rms_window_samples, segments=segments,
-        )
-        has_adaptive_threshold = True
+                               window_size=window_size)
 
     return {
         "has_flow": has_flow,
         "vel_col": vel_col,
         "disp_col": disp_col,
-        "has_adaptive_threshold": has_adaptive_threshold,
     }
