@@ -33,15 +33,15 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
     :func:`apply_adaptive_threshold` then picks the flow-RMS per-sample path
     (writing a ``threshold`` column) or the MAD scalar fallback automatically.
 
-    Returns ``(result_data, threshold, preprocess_meta, has_adaptive_threshold, arrays)``.
+    Returns ``(result_data, threshold, preprocess_flow_meta, has_adaptive_threshold, arrays)``.
     """
     result_data = gaze_data.copy()
     n = len(result_data)
     has_flow = "flow_x" in result_data.columns and "flow_y" in result_data.columns
 
-    preprocess_meta = None
-    if sampling_rate is not None and sampling_rate > 0 and has_flow:
-        preprocess_meta = preprocess_gaze_data(
+    preprocess_flow_meta = None
+    if has_flow:
+        preprocess_flow_meta = preprocess_gaze_data(
             result_data,
             sampling_rate,
             use_ivt=use_ivt,
@@ -63,7 +63,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
         "fixation_ids":   np.full(n, np.nan),
         "saccade_ids":    np.full(n, np.nan),
     }
-    return result_data, threshold, preprocess_meta, has_adaptive_threshold, arrays
+    return result_data, threshold, preprocess_flow_meta, has_adaptive_threshold, arrays
 
 
 def finalize_result_dataframe(result_data, arrays):
@@ -121,7 +121,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     otherwise the legacy expanding-window dispersion on raw coordinates is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
-    result_data, dispersion_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
+    result_data, dispersion_threshold, preprocess_flow_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, dispersion_threshold, adapt,
         use_ivt=False, sampling_rate=sampling_rate,
     )
@@ -132,9 +132,9 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     t = result_data["timestamp"].values
     cx, cy = _select_centroid_coords(result_data, x, y)
 
-    disp_values = (
-        result_data[preprocess_meta["disp_col"]].fillna(0).values
-        if preprocess_meta is not None else None
+    disp_flow_values = (
+        result_data[preprocess_flow_meta["disp_col"]].fillna(0).values
+        if preprocess_flow_meta is not None else None
     )
     adaptive_thresh = result_data["threshold"].values if has_adaptive else None
 
@@ -142,22 +142,22 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     fixation_id = 1
 
     while start_idx < n:
-        if disp_values is not None:
-            # Enhanced path: per-sample dispersion already computed.
+        if disp_flow_values is not None:
+            # Enhanced path: per-sample dispersion already computed. (head-mounted)
             local_thresh = adaptive_thresh[start_idx] if has_adaptive else dispersion_threshold
-            if disp_values[start_idx] > local_thresh:
+            if disp_flow_values[start_idx] > local_thresh:
                 start_idx += 1
                 continue
 
             current_idx = start_idx
             while current_idx < n:
                 local_thresh = adaptive_thresh[current_idx] if has_adaptive else dispersion_threshold
-                if disp_values[current_idx] > local_thresh:
+                if disp_flow_values[current_idx] > local_thresh:
                     break
                 current_idx += 1
             end_idx = current_idx - 1
         else:
-            # Legacy expanding-window dispersion on raw coordinates.
+            # Legacy expanding-window dispersion on raw coordinates. (stationary)
             current_idx = start_idx
             min_x = max_x = x[start_idx]
             min_y = max_y = y[start_idx]
@@ -197,7 +197,7 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
     without flow) is used; otherwise the legacy point-to-point velocity is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
     """
-    result_data, velocity_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
+    result_data, velocity_threshold, preprocess_flow_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, velocity_threshold, adapt,
         use_ivt=True, sampling_rate=sampling_rate,
     )
@@ -208,8 +208,8 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
     t = result_data["timestamp"].values
     cx, cy = _select_centroid_coords(result_data, x, y)
 
-    if preprocess_meta is not None:
-        velocity = result_data[preprocess_meta["vel_col"]].fillna(0).values
+    if preprocess_flow_meta is not None:
+        velocity = result_data[preprocess_flow_meta["vel_col"]].fillna(0).values
     else:
         velocity = compute_velocity(pd.DataFrame({"x": x, "y": y, "timestamp": t}))
     adaptive_thresh = result_data["threshold"].values if has_adaptive else None

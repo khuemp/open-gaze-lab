@@ -147,28 +147,13 @@ def compute_flow_window_rms(df: pd.DataFrame, window_size: int) -> pd.DataFrame:
     return df
 
 
-def compute_adaptive_threshold(
-    df: pd.DataFrame,
-    base_threshold: float,
-    window_size: int,
-    gain: float = 1.0,
-) -> pd.DataFrame:
-    """Per-sample threshold = ``base_threshold + gain x flow_rms_mag``.
-
-    Computes ``flow_rms_mag`` first if missing. Adds ``threshold``.
-    """
-    if "flow_rms_mag" not in df.columns:
-        compute_flow_window_rms(df, window_size)
-    df["threshold"] = base_threshold + gain * df["flow_rms_mag"]
-    return df
-
-
 def apply_adaptive_threshold(
     df: pd.DataFrame,
     base_threshold: float,
     *,
-    sampling_rate: float = None,
-    window_size_ms: float = 500.0,
+    sampling_rate: float,
+    gain: float = 0.05,
+    window_size_ms: float = 55.0,
     tuning_parameter: float = 0.1,
 ) -> tuple:
     """Adapt the saccade threshold to local motion, picking a strategy by signal.
@@ -186,10 +171,9 @@ def apply_adaptive_threshold(
     if has_flow_vel and sampling_rate is not None and sampling_rate > 0:
         sample_duration_ms = 1000.0 / sampling_rate
         rms_window_samples = int(window_size_ms / sample_duration_ms)
-        compute_adaptive_threshold(
-            df, base_threshold=base_threshold,
-            window_size=rms_window_samples,
-        )
+        if "flow_rms_mag" not in df.columns:
+            compute_flow_window_rms(df, rms_window_samples)
+        df["threshold"] = base_threshold + gain * df["flow_rms_mag"]
         return base_threshold, True
 
     velocity = compute_velocity(pd.DataFrame({
@@ -264,24 +248,6 @@ def compute_relative_dispersion(
     return df
 
 
-def compute_dispersion(
-    df: pd.DataFrame,
-    x_col: str,
-    y_col: str,
-    window_size: int,
-) -> pd.DataFrame:
-    """Rolling spatial dispersion ``(max_x - min_x) + (max_y - min_y)``.
-
-    Adds ``dispersion``.
-    """
-    spread = lambda v: v.max() - v.min()
-    df["dispersion"] = (
-        df[x_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
-        + df[y_col].rolling(window_size, center=True, min_periods=1).apply(spread, raw=True)
-    )
-    return df
-
-
 # ---------------------------------------------------------------------------
 # Pipeline entry-point
 # ---------------------------------------------------------------------------
@@ -308,38 +274,31 @@ def preprocess_gaze_data(
     Returns metadata pointing at the column names to threshold against
     (``vel_col`` / ``disp_col``).
     """
-    has_flow = "flow_x" in df.columns and "flow_y" in df.columns
 
     apply_savgol_filter(df, sampling_rate)
     coord_x, coord_y = "filter_x", "filter_y"
 
-    if has_flow:
-        compute_flow_velocity(df)
+    compute_flow_velocity(df)
 
     vel_col = "vel_mag"
     disp_col = "dispersion"
 
     if use_ivt:
         compute_gaze_velocity(df, x_col=coord_x, y_col=coord_y)
-        if has_flow:
-            compute_relative_velocity(df)
-            vel_col = "vel_rel_mag"
+
+        compute_relative_velocity(df)
+        vel_col = "vel_rel_mag"
     else:
         sample_duration_ms = 1000.0 / sampling_rate
         window_size = int(25.0 / sample_duration_ms)
-        if has_flow:
-            compute_relative_dispersion(
-                df, x_col=coord_x, y_col=coord_y,
-                window_size=window_size,
-                sample_duration_ms=sample_duration_ms,
-            )
-            disp_col = "rel_dispersion"
-        else:
-            compute_dispersion(df, x_col=coord_x, y_col=coord_y,
-                               window_size=window_size)
+        compute_relative_dispersion(
+            df, x_col=coord_x, y_col=coord_y,
+            window_size=window_size,
+            sample_duration_ms=sample_duration_ms,
+        )
+        disp_col = "rel_dispersion"
 
     return {
-        "has_flow": has_flow,
         "vel_col": vel_col,
         "disp_col": disp_col,
     }
