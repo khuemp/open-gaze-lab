@@ -241,6 +241,7 @@ def _summarize_events(detector, events_output_file, plot_file, time_plot_file):
         "num_oor_gaze_points": int((df["event_type"] == "Out of Range Gaze Samples").sum()),
         "num_nan_gaze_points": int((df["event_type"] == "NaN").sum()),
         "best_threshold": getattr(detector, "best_threshold", None),
+        "threshold_range": getattr(detector, "threshold_range", None),
     }
 
 
@@ -316,15 +317,42 @@ async def upload_video_dataset(
     zip_path.write_bytes(zip_content)
 
     try:
-        gaze_df, metadata = load_npy_dataset(str(zip_path), sampling_rate_hz=sampling_rate)
-    except Exception as e:
+        result = process_video_dataset(
+            zip_path=str(zip_path),
+            video_path=str(video_path),
+            video_save_name=video_save_name,
+            output_name=output_name,
+            min_fixation_duration=min_fixation_duration,
+            detection_threshold=detection_threshold,
+            algorithm=algorithm,
+            sampling_rate=sampling_rate,
+            adapt=adapt,
+            fallback_resolution=(width, height),
+        )
+    finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return {
+        "success": True,
+        "message": "Video dataset processed successfully",
+        "filename": output_name,
+        "result": result,
+    }
+
+
+def process_video_dataset(zip_path, video_path, video_save_name, output_name,
+                          min_fixation_duration, detection_threshold, algorithm,
+                          sampling_rate, adapt=False, fallback_resolution=(1920, 1080)):
+    """Run detection + video overlay visualization for a head-mounted dataset."""
+    try:
+        gaze_df, metadata = load_npy_dataset(zip_path, sampling_rate_hz=sampling_rate)
+    except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to load dataset: {e}")
 
-    video_meta = extract_video_metadata(str(video_path))
+    video_meta = extract_video_metadata(video_path)
     fps = video_meta.get("fps", 30.0)
-    vid_w = video_meta.get("width", width)
-    vid_h = video_meta.get("height", height)
+    vid_w = video_meta.get("width", fallback_resolution[0])
+    vid_h = video_meta.get("height", fallback_resolution[1])
 
     detector = EventDetection(
         gaze_df,
@@ -368,31 +396,45 @@ async def upload_video_dataset(
         output_path=str(vis_path),
     )
 
-    shutil.rmtree(tmp_dir, ignore_errors=True)
-
     f1_fixation, f1_saccade = _compute_f1_scores(valid_events, gt_labels)
 
+    return _summarize_video_events(
+        detector,
+        events_output_file,
+        vis_path,
+        fps=fps,
+        resolution=(vid_w, vid_h),
+        algorithm=algorithm,
+        gt_labels=gt_labels,
+        f1_fixation=f1_fixation,
+        f1_saccade=f1_saccade,
+        video_filename=video_save_name,
+    )
+
+
+def _summarize_video_events(detector, events_output_file, vis_path, *,
+                            fps, resolution, algorithm, gt_labels,
+                            f1_fixation, f1_saccade, video_filename):
+    """Build the JSON-friendly summary dict returned by /api/upload-video."""
+    df = detector.event_data_df
+    vid_w, vid_h = resolution
     return {
-        "success": True,
-        "message": "Video dataset processed successfully",
-        "filename": output_name,
-        "result": {
-            "events_file": str(events_output_file.relative_to(BASE_DIR)),
-            "video_plot_file": str(vis_path.relative_to(BASE_DIR)),
-            "num_events": len(detector.event_data_df),
-            "num_fixations": int((detector.event_data_df["event_type"] == "Fixation").sum()),
-            "num_saccades": int((detector.event_data_df["event_type"] == "Saccade").sum()),
-            "num_fixation_points": int(detector.event_data_df["fixation_id"].dropna().nunique()),
-            "num_fixation_centers": int(detector.event_data_df["fixation_id"].dropna().nunique()),
-            "fps": fps,
-            "video_resolution": f"{vid_w}x{vid_h}",
-            "algorithm": algorithm,
-            "has_gt": gt_labels is not None,
-            "best_threshold": getattr(detector, "best_threshold", None),
-            "f1_fixation": f1_fixation,
-            "f1_saccade": f1_saccade,
-            "video_filename": video_save_name,
-        },
+        "events_file": str(events_output_file.relative_to(BASE_DIR)),
+        "video_plot_file": str(vis_path.relative_to(BASE_DIR)),
+        "num_events": len(df),
+        "num_fixations": int((df["event_type"] == "Fixation").sum()),
+        "num_saccades": int((df["event_type"] == "Saccade").sum()),
+        "num_fixation_points": int(df["fixation_id"].dropna().nunique()),
+        "num_fixation_centers": int(df["fixation_id"].dropna().nunique()),
+        "fps": fps,
+        "video_resolution": f"{vid_w}x{vid_h}",
+        "algorithm": algorithm,
+        "has_gt": gt_labels is not None,
+        "best_threshold": getattr(detector, "best_threshold", None),
+        "threshold_range": getattr(detector, "threshold_range", None),
+        "f1_fixation": f1_fixation,
+        "f1_saccade": f1_saccade,
+        "video_filename": video_filename,
     }
 
 

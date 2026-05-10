@@ -211,10 +211,45 @@ function App() {
                     <React.Fragment>
                         <div className="panel">
                             <div className="upload-row">
-                                <FileUpload onFileSelect={handleFileSelect} fileName={file?.name} />
-                                <BackgroundImageUpload
-                                    onImageSelect={handleBackgroundImageSelect}
+                                <Upload
+                                    title="Gaze Data"
+                                    accept=".csv"
+                                    validate={(f) => f.type === 'text/csv' || f.name.endsWith('.csv')}
+                                    errorMsg="Please select a CSV file"
+                                    icon={ICON_UPLOAD}
+                                    inputId="csv-input"
+                                    fileName={file?.name}
+                                    onFileSelect={handleFileSelect}
+                                    placeholderText="Select CSV file"
+                                    selectedText="File ready for processing"
+                                />
+                                <Upload
+                                    title="Background Image"
+                                    accept="image/*"
+                                    validate={(f) => f.type.startsWith('image/')}
+                                    errorMsg="Please select an image file (PNG, JPG, etc.)"
+                                    icon={ICON_IMAGE}
+                                    inputId="bg-image-input"
                                     fileName={backgroundImage?.name}
+                                    onFileSelect={handleBackgroundImageSelect}
+                                    placeholderText="Select background image"
+                                    selectedText="Image will be shown behind plots"
+                                    extraClass="background-image-upload"
+                                    selectedExtra={{
+                                        className: 'bg-image-selected',
+                                        button: (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleBackgroundImageSelect(null);
+                                                }}
+                                                className="clear-image-btn"
+                                            >
+                                                Clear
+                                            </button>
+                                        ),
+                                    }}
                                 />
                             </div>
                         </div>
@@ -338,13 +373,31 @@ function App() {
                     <React.Fragment>
                         <div className="panel">
                             <div className="upload-row">
-                                <DatasetZipUpload
-                                    onFileSelect={setDatasetZip}
+                                <Upload
+                                    title="Dataset"
+                                    accept=".zip"
+                                    validate={(f) => f.name.toLowerCase().endsWith('.zip')}
+                                    errorMsg="Please select a .zip file"
+                                    icon={ICON_UPLOAD}
+                                    inputId="zip-input"
                                     fileName={datasetZip?.name}
+                                    onFileSelect={setDatasetZip}
+                                    placeholderText="Select ZIP (.npy) dataset"
+                                    hintText="gaze, time_gaze, optic_flow, time_optic_flow, time_scene_camera, (gt_labels)"
+                                    selectedText="Dataset ready"
                                 />
-                                <VideoUpload
-                                    onFileSelect={setVideoFile}
+                                <Upload
+                                    title="Scene Video"
+                                    accept=".mp4,video/mp4"
+                                    validate={(f) => f.name.toLowerCase().endsWith('.mp4')}
+                                    errorMsg="Please select an .mp4 video file"
+                                    icon={ICON_VIDEO}
+                                    inputId="video-input"
                                     fileName={videoFile?.name}
+                                    onFileSelect={setVideoFile}
+                                    placeholderText="Select MP4 video"
+                                    hintText="Scene camera recording"
+                                    selectedText="Video ready"
                                 />
                             </div>
                         </div>
@@ -440,26 +493,71 @@ function App() {
 
                 {loading && <div className="loading-spinner">Processing...</div>}
 
-                {stationaryResults && mode === 'stationary' && <ResultsDisplay results={stationaryResults} />}
-                {hmResults && mode === 'headmounted' && <VideoResultsDisplay results={hmResults} />}
+                {stationaryResults && mode === 'stationary' && (
+                    <ResultsDisplay results={stationaryResults} variant="stationary" />
+                )}
+                {hmResults && mode === 'headmounted' && (
+                    <ResultsDisplay results={hmResults} variant="headmounted" />
+                )}
             </main>
         </div>
     );
 }
 
-function FileUpload({ onFileSelect, fileName }) {
+const ICON_UPLOAD = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+);
+
+const ICON_IMAGE = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21 15 16 10 5 21" />
+    </svg>
+);
+
+const ICON_VIDEO = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+        <line x1="7" y1="2" x2="7" y2="22" />
+        <line x1="17" y1="2" x2="17" y2="22" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <line x1="2" y1="7" x2="7" y2="7" />
+        <line x1="2" y1="17" x2="7" y2="17" />
+        <line x1="17" y1="7" x2="22" y2="7" />
+        <line x1="17" y1="17" x2="22" y2="17" />
+    </svg>
+);
+
+function Upload({
+    title,
+    accept,
+    validate,
+    errorMsg,
+    icon,
+    inputId,
+    fileName,
+    onFileSelect,
+    placeholderText,
+    hintText = 'or drag and drop',
+    selectedText,
+    extraClass = '',
+    selectedExtra = null,
+}) {
     const [isDragging, setIsDragging] = React.useState(false);
 
-    const handleFileChange = (event) => {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-                onFileSelect(file);
-            } else {
-                alert('Please select a CSV file');
-            }
-        }
+    const handleFile = (file) => {
+        if (validate(file)) onFileSelect(file);
+        else alert(errorMsg);
+    };
+
+    const handleFileChange = (e) => {
+        const f = e.target.files?.[0];
+        if (f) handleFile(f);
     };
 
     const handleDragOver = (e) => {
@@ -478,21 +576,13 @@ function FileUpload({ onFileSelect, fileName }) {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
-
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-                onFileSelect(file);
-            } else {
-                alert('Please select a CSV file');
-            }
-        }
+        const f = e.dataTransfer.files?.[0];
+        if (f) handleFile(f);
     };
 
     return (
-        <div className="file-upload">
-            <h2>Gaze Data</h2>
+        <div className={`file-upload ${extraClass}`.trim()}>
+            <h2>{title}</h2>
             <div
                 className={`upload-area ${isDragging ? 'dragging' : ''}`}
                 onDragOver={handleDragOver}
@@ -501,125 +591,55 @@ function FileUpload({ onFileSelect, fileName }) {
             >
                 <input
                     type="file"
-                    accept=".csv"
+                    accept={accept}
                     onChange={handleFileChange}
-                    id="csv-input"
+                    id={inputId}
                     className="hidden-input"
                 />
-                <label htmlFor="csv-input" className="upload-label">
-                    <div className="upload-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="17 8 12 3 7 8" />
-                            <line x1="12" y1="3" x2="12" y2="15" />
-                        </svg>
-                    </div>
+                <label htmlFor={inputId} className="upload-label">
+                    <div className="upload-icon">{icon}</div>
                     <p className="upload-text">
-                        {fileName ? `Selected: ${fileName}` : 'Select CSV file'}
+                        {fileName ? `Selected: ${fileName}` : placeholderText}
                     </p>
-                    <p className="upload-hint">or drag and drop</p>
-                </label>
-            </div>
-            {fileName && <div className="file-selected">File ready for processing</div>}
-        </div>
-    );
-}
-
-function BackgroundImageUpload({ onImageSelect, fileName }) {
-    const [isDragging, setIsDragging] = React.useState(false);
-
-    const handleFileChange = (event) => {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type.startsWith('image/')) {
-                onImageSelect(file);
-            } else {
-                alert('Please select an image file (PNG, JPG, etc.)');
-            }
-        }
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.type.startsWith('image/')) {
-                onImageSelect(file);
-            } else {
-                alert('Please select an image file (PNG, JPG, etc.)');
-            }
-        }
-    };
-
-    const handleClear = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onImageSelect(null);
-    };
-
-    return (
-        <div className="file-upload background-image-upload">
-            <h2>Background Image</h2>
-            <div
-                className={`upload-area ${isDragging ? 'dragging' : ''}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-            >
-                <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    id="bg-image-input"
-                    className="hidden-input"
-                />
-                <label htmlFor="bg-image-input" className="upload-label">
-                    <div className="upload-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                            <circle cx="8.5" cy="8.5" r="1.5" />
-                            <polyline points="21 15 16 10 5 21" />
-                        </svg>
-                    </div>
-                    <p className="upload-text">
-                        {fileName ? `Selected: ${fileName}` : 'Select background image'}
-                    </p>
-                    <p className="upload-hint">or drag and drop</p>
+                    <p className="upload-hint">{hintText}</p>
                 </label>
             </div>
             {fileName && (
-                <div className="file-selected bg-image-selected">
-                    Image will be shown behind plots
-                    <button onClick={handleClear} className="clear-image-btn">Clear</button>
+                <div className={`file-selected ${selectedExtra?.className || ''}`.trim()}>
+                    {selectedText}
+                    {selectedExtra?.button}
                 </div>
             )}
         </div>
     );
 }
 
-function ResultsDisplay({ results }) {
+function ResultsDisplay({ results, variant = 'stationary' }) {
+    const r = results.result || {};
+    const isHm = variant === 'headmounted';
+    const [videoFrameHeight, setVideoFrameHeight] = React.useState(1000);
+
+    React.useEffect(() => {
+        if (!isHm) return undefined;
+        const handleMessage = (event) => {
+            if (event.data?.type !== 'video-gaze-visualization-height') return;
+            const nextHeight = Number(event.data.height);
+            if (Number.isFinite(nextHeight) && nextHeight > 0) {
+                setVideoFrameHeight((cur) => {
+                    const rounded = Math.ceil(nextHeight);
+                    return Math.abs(cur - rounded) > 4 ? rounded : cur;
+                });
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [isHm]);
+
     return (
         <div className="results-container">
             <div className="results-header">
                 <h2>Detection Results</h2>
-                {results.result?.events_file && (
+                {r.events_file && (
                     <a
                         href={`http://127.0.0.1:5000/api/results/${results.filename}`}
                         className="download-button"
@@ -630,64 +650,65 @@ function ResultsDisplay({ results }) {
                 )}
             </div>
 
-            <div className="results-grid">
+            <div className={`results-grid ${isHm ? 'hm-results-grid' : ''}`.trim()}>
                 <div className="result-card">
                     <p className="result-label">Total Gaze Samples</p>
-                    <p className="result-value">
-                        {results.result?.num_events || 0}
-                    </p>
+                    <p className="result-value">{r.num_events || 0}</p>
                 </div>
-
                 <div className="result-card">
                     <p className="result-label">Fixation Samples</p>
-                    <p className="result-value">
-                        {results.result?.num_fixations || 0}
-                    </p>
+                    <p className="result-value">{r.num_fixations || 0}</p>
                 </div>
-
                 <div className="result-card">
                     <p className="result-label">Saccade Samples</p>
-                    <p className="result-value">
-                        {results.result?.num_saccades || 0}
-                    </p>
+                    <p className="result-value">{r.num_saccades || 0}</p>
                 </div>
-
-                <div className="result-card">
-                    <p className="result-label">Out of Range</p>
-                    <p className="result-value">
-                        {results.result?.num_oor_gaze_points || 0}
-                    </p>
-                </div>
-
-                <div className="result-card">
-                    <p className="result-label">Invalid (NaN)</p>
-                    <p className="result-value">
-                        {results.result?.num_nan_gaze_points || 0}
-                    </p>
-                </div>
-
                 <div className="result-card">
                     <p className="result-label">Fixation Events</p>
-                    <p className="result-value">
-                        {results.result?.num_fixation_points || 0}
-                    </p>
+                    <p className="result-value">{r.num_fixation_points || 0}</p>
                 </div>
-
+                {!isHm && (
+                    <React.Fragment>
+                        <div className="result-card">
+                            <p className="result-label">Out of Range</p>
+                            <p className="result-value">{r.num_oor_gaze_points || 0}</p>
+                        </div>
+                        <div className="result-card">
+                            <p className="result-label">Invalid (NaN)</p>
+                            <p className="result-value">{r.num_nan_gaze_points || 0}</p>
+                        </div>
+                    </React.Fragment>
+                )}
+                {isHm && r.f1_fixation != null && (
+                    <div className="result-card">
+                        <p className="result-label">F1 Fixation</p>
+                        <p className="result-value">{r.f1_fixation}</p>
+                    </div>
+                )}
+                {isHm && r.f1_saccade != null && (
+                    <div className="result-card">
+                        <p className="result-label">F1 Saccade</p>
+                        <p className="result-value">{r.f1_saccade}</p>
+                    </div>
+                )}
                 <div className="result-card">
                     <p className="result-label">Threshold</p>
                     <p className="result-value">
-                        {results.result?.best_threshold ? results.result.best_threshold.toFixed(2) : 'N/A'}
+                        {r.best_threshold ? r.best_threshold.toFixed(2) : 'N/A'}
                     </p>
+                    {r.threshold_range && (
+                        <p className="result-sublabel">
+                            per-sample adaptive: {r.threshold_range.min.toFixed(2)}-{r.threshold_range.max.toFixed(2)}
+                        </p>
+                    )}
                 </div>
             </div>
 
             {results.message && (
-                <div className="results-message">
-                    <p>{results.message}</p>
-                </div>
+                <div className="results-message"><p>{results.message}</p></div>
             )}
 
-            {results.result?.plot_file && (
+            {!isHm && r.plot_file && (
                 <div className="plot-container">
                     <h3>Stationary Visualization</h3>
                     <iframe
@@ -698,7 +719,7 @@ function ResultsDisplay({ results }) {
                 </div>
             )}
 
-            {results.result?.time_plot_file && (
+            {!isHm && r.time_plot_file && (
                 <div className="plot-container">
                     <h3>Time-Scrolling Visualization</h3>
                     <iframe
@@ -708,162 +729,8 @@ function ResultsDisplay({ results }) {
                     />
                 </div>
             )}
-        </div>
-    );
-}
 
-function DatasetZipUpload({ onFileSelect, fileName }) {
-    const [isDragging, setIsDragging] = React.useState(false);
-    const handleFileChange = (e) => {
-        const f = e.target.files?.[0];
-        if (f && f.name.toLowerCase().endsWith('.zip')) onFileSelect(f);
-        else alert('Please select a .zip file');
-    };
-    const handleDrop = (e) => {
-        e.preventDefault(); setIsDragging(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f && f.name.toLowerCase().endsWith('.zip')) onFileSelect(f);
-        else alert('Please select a .zip file');
-    };
-    return (
-        <div className="file-upload">
-            <h2>Dataset</h2>
-            <div className={`upload-area ${isDragging ? 'dragging' : ''}`}
-                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                 onDrop={handleDrop}>
-                <input type="file" accept=".zip" onChange={handleFileChange}
-                       id="zip-input" className="hidden-input" />
-                <label htmlFor="zip-input" className="upload-label">
-                    <div className="upload-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                        </svg>
-                    </div>
-                    <p className="upload-text">{fileName ? `Selected: ${fileName}` : 'Select ZIP (.npy) dataset'}</p>
-                    <p className="upload-hint">gaze, time_gaze, optic_flow, time_optic_flow, time_scene_camera, (gt_labels)</p>
-                </label>
-            </div>
-            {fileName && <div className="file-selected">Dataset ready</div>}
-        </div>
-    );
-}
-
-function VideoUpload({ onFileSelect, fileName }) {
-    const [isDragging, setIsDragging] = React.useState(false);
-    const handleFileChange = (e) => {
-        const f = e.target.files?.[0];
-        if (f && f.name.toLowerCase().endsWith('.mp4')) onFileSelect(f);
-        else alert('Please select an .mp4 video file');
-    };
-    const handleDrop = (e) => {
-        e.preventDefault(); setIsDragging(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f && f.name.toLowerCase().endsWith('.mp4')) onFileSelect(f);
-        else alert('Please select an .mp4 video file');
-    };
-    return (
-        <div className="file-upload">
-            <h2>Scene Video</h2>
-            <div className={`upload-area ${isDragging ? 'dragging' : ''}`}
-                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                 onDrop={handleDrop}>
-                <input type="file" accept=".mp4,video/mp4" onChange={handleFileChange}
-                       id="video-input" className="hidden-input" />
-                <label htmlFor="video-input" className="upload-label">
-                    <div className="upload-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
-                            <line x1="7" y1="2" x2="7" y2="22" /><line x1="17" y1="2" x2="17" y2="22" />
-                            <line x1="2" y1="12" x2="22" y2="12" />
-                            <line x1="2" y1="7" x2="7" y2="7" /><line x1="2" y1="17" x2="7" y2="17" />
-                            <line x1="17" y1="7" x2="22" y2="7" /><line x1="17" y1="17" x2="22" y2="17" />
-                        </svg>
-                    </div>
-                    <p className="upload-text">{fileName ? `Selected: ${fileName}` : 'Select MP4 video'}</p>
-                    <p className="upload-hint">Scene camera recording</p>
-                </label>
-            </div>
-            {fileName && <div className="file-selected">Video ready</div>}
-        </div>
-    );
-}
-
-function VideoResultsDisplay({ results }) {
-    const [videoFrameHeight, setVideoFrameHeight] = React.useState(1000);
-
-    React.useEffect(() => {
-        const handleMessage = (event) => {
-            if (event.data?.type !== 'video-gaze-visualization-height') return;
-            const nextHeight = Number(event.data.height);
-            if (Number.isFinite(nextHeight) && nextHeight > 0) {
-                setVideoFrameHeight((currentHeight) => {
-                    const roundedHeight = Math.ceil(nextHeight);
-                    return Math.abs(currentHeight - roundedHeight) > 4 ? roundedHeight : currentHeight;
-                });
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, []);
-
-    return (
-        <div className="results-container">
-            <div className="results-header">
-                <h2>Detection Results</h2>
-                {results.result?.events_file && (
-                    <a href={`http://127.0.0.1:5000/api/results/${results.filename}`}
-                       className="download-button" download>
-                        Download Events CSV
-                    </a>
-                )}
-            </div>
-
-            <div className="results-grid hm-results-grid">
-                <div className="result-card">
-                    <p className="result-label">Total Gaze Samples</p>
-                    <p className="result-value">{results.result?.num_events || 0}</p>
-                </div>
-                <div className="result-card">
-                    <p className="result-label">Fixation Samples</p>
-                    <p className="result-value">{results.result?.num_fixations || 0}</p>
-                </div>
-                <div className="result-card">
-                    <p className="result-label">Saccade Samples</p>
-                    <p className="result-value">{results.result?.num_saccades || 0}</p>
-                </div>
-                <div className="result-card">
-                    <p className="result-label">Fixation Events</p>
-                    <p className="result-value">{results.result?.num_fixation_centers || 0}</p>
-                </div>
-                {results.result?.f1_fixation != null && (
-                    <div className="result-card">
-                        <p className="result-label">F1 Fixation</p>
-                        <p className="result-value">{results.result.f1_fixation}</p>
-                    </div>
-                )}
-                {results.result?.f1_saccade != null && (
-                    <div className="result-card">
-                        <p className="result-label">F1 Saccade</p>
-                        <p className="result-value">{results.result.f1_saccade}</p>
-                    </div>
-                )}
-                <div className="result-card">
-                    <p className="result-label">Threshold</p>
-                    <p className="result-value">
-                        {results.result?.best_threshold ? results.result.best_threshold.toFixed(2) : 'N/A'}
-                    </p>
-                </div>
-            </div>
-
-            {results.message && (
-                <div className="results-message"><p>{results.message}</p></div>
-            )}
-
-            {results.result?.video_plot_file && (
+            {isHm && r.video_plot_file && (
                 <div className="plot-container video-plot-container">
                     <h3>Video Gaze Overlay Visualization</h3>
                     <iframe

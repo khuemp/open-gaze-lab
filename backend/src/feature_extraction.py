@@ -134,15 +134,15 @@ def _rolling_rms(series: pd.Series, window: int) -> pd.Series:
     )
 
 
-def compute_flow_window_rms(df: pd.DataFrame, window_size: int) -> pd.DataFrame:
+def compute_flow_window_rms(df: pd.DataFrame, rms_window_size: int) -> pd.DataFrame:
     """Rolling RMS of optical-flow velocity (head-motion strength indicator).
 
     Adds ``flow_rms_mag``.
     """
-    window_size = max(1, window_size)
+    rms_window_size = max(1, rms_window_size)
     df["flow_rms_mag"] = np.hypot(
-        _rolling_rms(df["flow_x_vel"], window_size),
-        _rolling_rms(df["flow_y_vel"], window_size),
+        _rolling_rms(df["flow_x_vel"], rms_window_size),
+        _rolling_rms(df["flow_y_vel"], rms_window_size),
     )
     return df
 
@@ -170,9 +170,9 @@ def apply_adaptive_threshold(
 
     if has_flow_vel and sampling_rate is not None and sampling_rate > 0:
         sample_duration_ms = 1000.0 / sampling_rate
-        rms_window_samples = int(window_size_ms / sample_duration_ms)
+        rms_window_size = int(window_size_ms / sample_duration_ms) # convert window size from ms to samples
         if "flow_rms_mag" not in df.columns:
-            compute_flow_window_rms(df, rms_window_samples)
+            compute_flow_window_rms(df, rms_window_size)
         df["threshold"] = base_threshold + gain * df["flow_rms_mag"]
         return base_threshold, True
 
@@ -290,7 +290,8 @@ def preprocess_gaze_data(
         vel_col = "vel_rel_mag"
     else:
         sample_duration_ms = 1000.0 / sampling_rate
-        window_size = int(25.0 / sample_duration_ms)
+        dispersion_window_size_ms = 25.0
+        window_size = int(dispersion_window_size_ms / sample_duration_ms) # convert window size from ms to samples
         compute_relative_dispersion(
             df, x_col=coord_x, y_col=coord_y,
             window_size=window_size,

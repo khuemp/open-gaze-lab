@@ -226,10 +226,24 @@ class EventDetection:
             logging.error("Failed to process event data")
             self.event_data_df = None
             self.best_threshold = None
+            self.threshold_range = None
             return None
 
         self.event_data_df = clean_fixations(event_gaze)
         self.best_threshold = threshold_used
+
+        # Per-sample adaptive threshold (flow-RMS path) writes a `threshold`
+        # column. Surface its range so callers can show "input + adapted range".
+        self.threshold_range = None
+        if "threshold" in self.event_data_df.columns:
+            thr = self.event_data_df["threshold"].dropna()
+            if len(thr) > 0:
+                self.threshold_range = {
+                    "min": float(thr.min()),
+                    "max": float(thr.max()),
+                    "mean": float(thr.mean()),
+                }
+
         logging.info("Event data processing completed")
         return self.event_data_df
 

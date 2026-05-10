@@ -394,6 +394,27 @@ body {
     margin: 0;
 }
 
+.result-sublabel {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin: 0.15rem 0 0 0;
+    line-height: 1.2;
+}
+
+.result-tag {
+    display: inline-block;
+    margin-left: 0.3rem;
+    padding: 0 0.3rem;
+    font-size: 0.55rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    text-transform: none;
+    letter-spacing: 0;
+    vertical-align: middle;
+}
+
 .results-message {
     background-color: rgba(46, 125, 50, 0.08);
     border-left: 2px solid var(--success);
