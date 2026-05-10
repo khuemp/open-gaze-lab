@@ -16,16 +16,6 @@ from scipy.signal import savgol_filter
 
 from .utils import compute_velocity, compute_mad
 
-
-# ---------------------------------------------------------------------------
-# Column helpers
-# ---------------------------------------------------------------------------
-
-def detect_flow_columns(df: pd.DataFrame) -> bool:
-    """True when *df* has both ``flow_x`` and ``flow_y`` columns."""
-    return "flow_x" in df.columns and "flow_y" in df.columns
-
-
 # ---------------------------------------------------------------------------
 # Savitzky-Golay smoothing
 # ---------------------------------------------------------------------------
@@ -300,7 +290,7 @@ def preprocess_gaze_data(
     df: pd.DataFrame,
     sampling_rate: float,
     *,
-    is_velocity_based: bool,
+    use_ivt: bool,
 ) -> dict:
     """Run the I-VAT+Frel feature pipeline on *df* (in-place).
 
@@ -318,7 +308,7 @@ def preprocess_gaze_data(
     Returns metadata pointing at the column names to threshold against
     (``vel_col`` / ``disp_col``).
     """
-    has_flow = detect_flow_columns(df)
+    has_flow = "flow_x" in df.columns and "flow_y" in df.columns
 
     apply_savgol_filter(df, sampling_rate)
     coord_x, coord_y = "filter_x", "filter_y"
@@ -329,7 +319,7 @@ def preprocess_gaze_data(
     vel_col = "vel_mag"
     disp_col = "dispersion"
 
-    if is_velocity_based:
+    if use_ivt:
         compute_gaze_velocity(df, x_col=coord_x, y_col=coord_y)
         if has_flow:
             compute_relative_velocity(df)

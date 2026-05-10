@@ -24,7 +24,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
                                 threshold: float,
                                 adapt: bool = False,
                                 *,
-                                is_velocity_based: bool,
+                                use_ivt: bool,
                                 sampling_rate: float) -> tuple:
     """Build the shared inputs for ``classify_idt`` / ``classify_ivt``.
 
@@ -44,7 +44,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
         preprocess_meta = preprocess_gaze_data(
             result_data,
             sampling_rate,
-            is_velocity_based=is_velocity_based,
+            use_ivt=use_ivt,
         )
 
     has_adaptive_threshold = False
@@ -123,7 +123,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     """
     result_data, dispersion_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, dispersion_threshold, adapt,
-        is_velocity_based=False, sampling_rate=sampling_rate,
+        use_ivt=False, sampling_rate=sampling_rate,
     )
 
     n = len(result_data)
@@ -199,7 +199,7 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
     """
     result_data, velocity_threshold, preprocess_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, velocity_threshold, adapt,
-        is_velocity_based=True, sampling_rate=sampling_rate,
+        use_ivt=True, sampling_rate=sampling_rate,
     )
 
     n = len(result_data)
