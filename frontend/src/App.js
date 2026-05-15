@@ -78,6 +78,8 @@ function App() {
     const [hmAlgorithm, setHmAlgorithm] = useState('');
     const [hmSamplingRate, setHmSamplingRate] = useState('');
     const [hmAdapt, setHmAdapt] = useState(false);
+    const [hmGain, setHmGain] = useState('');
+    const [hmWindowSizeMs, setHmWindowSizeMs] = useState('');
 
     // Shared state
     const [stationaryResults, setStationaryResults] = useState(null);
@@ -114,6 +116,8 @@ function App() {
             appendIfPresent(formData, 'algorithm', hmAlgorithm);
             appendIfPresent(formData, 'sampling_rate', hmSamplingRate);
             formData.append('adapt', hmAdapt.toString());
+            appendIfPresent(formData, 'gain', hmGain);
+            appendIfPresent(formData, 'window_size_ms', hmWindowSizeMs);
 
             const response = await fetch('http://127.0.0.1:5000/api/upload-video', {
                 method: 'POST',
@@ -462,6 +466,29 @@ function App() {
                                         placeholder="30"
                                         className="input-field"
                                     />
+                                </div>
+
+                                <div className="control-group threshold-extras">
+                                    <div className="threshold-extra-item">
+                                        <label htmlFor="hm-gain">Gain</label>
+                                        <NumericInput
+                                            id="hm-gain"
+                                            value={hmGain}
+                                            onChange={setHmGain}
+                                            placeholder="0"
+                                            className="input-field"
+                                        />
+                                    </div>
+                                    <div className="threshold-extra-item">
+                                        <label htmlFor="hm-window-size">Window Size (ms)</label>
+                                        <NumericInput
+                                            id="hm-window-size"
+                                            value={hmWindowSizeMs}
+                                            onChange={setHmWindowSizeMs}
+                                            placeholder="0"
+                                            className="input-field"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 

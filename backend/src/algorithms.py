@@ -25,7 +25,9 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
                                 adapt: bool = False,
                                 *,
                                 use_ivt: bool,
-                                sampling_rate: float) -> tuple:
+                                sampling_rate: float,
+                                gain: float = 0.0,
+                                window_size_ms: float = 0.0) -> tuple:
     """Build the shared inputs for ``classify_idt`` / ``classify_ivt``.
 
     With *sampling_rate* and optical-flow columns the I-VAT+Frel pipeline
@@ -52,7 +54,9 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
         threshold, has_adaptive_threshold = apply_adaptive_threshold(
             result_data,
             base_threshold=threshold,
-            sampling_rate=sampling_rate
+            sampling_rate=sampling_rate,
+            gain=gain,
+            window_size_ms=window_size_ms,
         )
 
     arrays = {
@@ -113,7 +117,7 @@ def _record_fixation(arrays, start_idx, end_idx, cx, cy, window_duration, fixati
 # ---------------------------------------------------------------------------
 
 def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, sampling_rate,
-                 adapt=False):
+                 adapt=False, gain=0.0, window_size_ms=0.0):
     """I-DT (dispersion threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
@@ -124,6 +128,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
     result_data, dispersion_threshold, preprocess_flow_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, dispersion_threshold, adapt,
         use_ivt=False, sampling_rate=sampling_rate,
+        gain=gain, window_size_ms=window_size_ms,
     )
 
     n = len(result_data)
@@ -189,7 +194,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
 # ---------------------------------------------------------------------------
 
 def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_rate,
-                 adapt=False):
+                 adapt=False, gain=0.0, window_size_ms=0.0):
     """I-VT (velocity threshold) fixation/saccade classifier.
 
     With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
@@ -200,6 +205,7 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
     result_data, velocity_threshold, preprocess_flow_meta, has_adaptive, arrays = prepare_classification_data(
         gaze_data, velocity_threshold, adapt,
         use_ivt=True, sampling_rate=sampling_rate,
+        gain=gain, window_size_ms=window_size_ms,
     )
 
     n = len(result_data)

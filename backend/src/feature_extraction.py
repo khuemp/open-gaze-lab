@@ -152,8 +152,8 @@ def apply_adaptive_threshold(
     base_threshold: float,
     *,
     sampling_rate: float,
-    gain: float = 0.05,
-    window_size_ms: float = 55.0,
+    gain: float = 0.0,
+    window_size_ms: float = 0.0,
     tuning_parameter: float = 0.1,
 ) -> tuple:
     """Adapt the saccade threshold to local motion, picking a strategy by signal.

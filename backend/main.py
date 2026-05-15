@@ -285,6 +285,8 @@ async def upload_video_dataset(
     algorithm: Optional[str] = Form(None),
     sampling_rate: Optional[int] = Form(None),
     adapt: bool = Form(False),
+    gain: float = Form(0.0),
+    window_size_ms: float = Form(0.0),
 ):
     """Upload a .zip of .npy files + an .mp4 video for head-mounted processing."""
     _require_params(
@@ -329,6 +331,8 @@ async def upload_video_dataset(
             algorithm=algorithm,
             sampling_rate=sampling_rate,
             adapt=adapt,
+            gain=gain,
+            window_size_ms=window_size_ms,
             fallback_resolution=(width, height),
         )
     finally:
@@ -344,7 +348,8 @@ async def upload_video_dataset(
 
 def process_video_dataset(zip_path, video_path, video_save_name, output_name,
                           min_fixation_duration, detection_threshold, algorithm,
-                          sampling_rate, adapt=False, fallback_resolution=(1920, 1080)):
+                          sampling_rate, adapt=False, gain=0.0, window_size_ms=0.0,
+                          fallback_resolution=(1920, 1080)):
     """Run detection + video overlay visualization for a head-mounted dataset."""
     try:
         gaze_df, metadata = load_head_mounted_dataset(
@@ -372,6 +377,8 @@ def process_video_dataset(zip_path, video_path, video_save_name, output_name,
         algorithm=algorithm,
         sampling_rate=sampling_rate,
         adapt=adapt,
+        gain=gain,
+        window_size_ms=window_size_ms,
         correct_timestamps_flag=False,
     )
 

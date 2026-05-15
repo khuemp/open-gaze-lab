@@ -127,7 +127,7 @@ class EventDetection:
 
     def detect_event(self, min_fixation_duration, algorithm, detection_threshold,
                      sampling_rate, fixation_merge_threshold=None,
-                     adapt=False):
+                     adapt=False, gain=0.0, window_size_ms=0.0):
         """Run fixation/saccade detection on ``self.gaze_data``.
 
         All numerical parameters are required and must be supplied by the caller
@@ -156,6 +156,8 @@ class EventDetection:
                     min_fixation_duration=min_fixation_duration,
                     adapt=adapt,
                     sampling_rate=sampling_rate,
+                    gain=gain,
+                    window_size_ms=window_size_ms,
                 )
             elif algorithm == "ivt":
                 data, threshold_used = classify_ivt(
@@ -164,6 +166,8 @@ class EventDetection:
                     min_fixation_duration=min_fixation_duration,
                     adapt=adapt,
                     sampling_rate=sampling_rate,
+                    gain=gain,
+                    window_size_ms=window_size_ms,
                 )
             else:
                 raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -188,7 +192,7 @@ class EventDetection:
 
     def process_event(self, min_fixation_duration, algorithm, detection_threshold,
                       sampling_rate, fixation_merge_threshold: float = None,
-                      adapt=False,
+                      adapt=False, gain: float = 0.0, window_size_ms: float = 0.0,
                       correct_timestamps_flag: bool = True):
         """Run the full detection + cleaning pipeline.
 
@@ -220,6 +224,8 @@ class EventDetection:
             detection_threshold=detection_threshold,
             adapt=adapt,
             sampling_rate=sampling_rate,
+            gain=gain,
+            window_size_ms=window_size_ms,
         )
 
         if event_gaze is None:

@@ -217,14 +217,21 @@ OpenGazeLab can be used with both stationary and head-mounted eye-tracking datas
 
 ## Recommended Parameters
 
-The head-mounted defaults below are based on our parameter sweeps on the DD dataset listed in [Papers and Datasets](#papers-and-datasets). Treat them as practical starting points for other recordings, especially when the headset, scene-camera resolution, or sampling rate differs.
-
 ### Adaptive-threshold suggestions
 
-| Parameter | Default | Justification |
-|-----------|---------|---------------|
-| `gain` | **0.05** | We swept gain over a wide range. **I-DT** performed best at `gain = 0`. **I-VT** performed best across `gain ∈ {0.4, 0.6, 0.7, 0.8}`. We chose **0.05** as a small, conservative compromise that nudges the threshold up under head motion without dominating either algorithm. |
-| `window_size_ms` | **55.0** | Consistently the best window size across the DD parameter sweeps. |
+The adaptive-threshold path on the Head-Mounted tab takes two user inputs, `gain` and `window_size_ms`. Both default to `0` when left blank in the UI.
+
+- **`gain`** — multiplier applied to the rolling RMS of optical-flow velocity. The per-sample threshold is computed as `detection_threshold + gain × flow_rms_mag`, so a larger `gain` pushes the threshold up more aggressively under head motion. With `gain = 0`, the motion-driven adjustment is disabled (the threshold equals `detection_threshold` for every sample).
+- **`window_size_ms`** — length of the centered rolling window used to compute the flow-RMS magnitude. Shorter windows track rapid head movements more closely; longer windows produce a smoother, less reactive threshold.
+
+The recommendations below come from our parameter sweeps on the DD and GiW datasets listed in [Papers and Datasets](#papers-and-datasets). Treat them as practical starting points — tune for recordings on different headsets, scene cameras, or sampling rates.
+
+| Dataset | Algorithm | `gain`                 | `window_size_ms` |
+|---------|-----------|------------------------|-------------------|
+| DD      | I-DT      | ∈ {0.4, 0.6, 0.7, 0.8} | 55                |
+| DD      | I-VT      | 0                      | 55                |
+| GiW     | I-DT      | 0.05                   | 155               |
+| GiW     | I-VT      | ∈ {0.6, 0.8, 0.9, 1.0} | 55                |
 
 ### Detection-threshold suggestions
 
@@ -237,19 +244,19 @@ These values are the per-algorithm best detection thresholds found on the DD dat
 
 Tune these values for datasets recorded with a different headset, scene-camera resolution, or sampling rate.
 
-### Recommended GiW parameters
+### DD parameters
 
-Starting points for Gaze-in-Wild recordings. Replace the _TBD_ cells with values from your own parameter sweep.
+| Parameter | Suggested value | 
+|-----------|-----------------|
+| Video Resolution | `1088,1080` | 
+| Sampling Rate | `200` | 
 
-| Parameter | Suggested value | Notes |
-|-----------|-----------------|-------|
-| Video Resolution | `1920,1080` | GiW scene-camera native resolution |
-| Sampling Rate | `300` | GiW gaze sampling rate |
-| Min Fixation Duration | _TBD_ | Fill from sweep |
-| I-DT detection threshold | _TBD_ | Fill from sweep |
-| I-VT detection threshold | _TBD_ | Fill from sweep |
-| Adaptive-threshold `gain` | _TBD_ | Fill from sweep |
-| Adaptive-threshold `window_size_ms` | _TBD_ | Fill from sweep |
+### GiW parameters
+
+| Parameter | Suggested value |
+|-----------|-----------------|
+| Video Resolution | `1920,1080` | 
+| Sampling Rate | `300` | 
 
 ---
 
@@ -370,14 +377,14 @@ Classifies each sample as a **fixation** when point-to-point velocity stays belo
 - **Best for**: High sampling rate, clean data
 - **Typical threshold**: 20–50 px/ms (stationary), ~1.0 px/ms (head-mounted, on relative velocity)
 
-### I-VAT+Frel (Head-Mounted Enhanced Pipeline)
+### Head-Mounted Enhanced Pipeline
 A variant designed for head-mounted trackers, where head motion contaminates raw gaze velocity / dispersion. It feeds either the I-DT or the I-VT classifier with flow-compensated features:
 
 1. **Savitzky-Golay smoothing** (55 ms window) on raw gaze coordinates
 2. **Flow velocity** extracted from the optical flow grid (head/camera motion)
 3. **For I-VT**: gaze velocity from smoothed coordinates, then **relative velocity** = `gaze_velocity − flow_velocity` — isolates true eye movement
 4. **For I-DT**: **relative dispersion** — gaze dispersion measured against a flow-integrated "ideal" trajectory, removing apparent motion caused by head movement
-5. **Flow RMS** (rolling 55 ms window) quantifies how much the head is moving
+5. **Flow RMS** quantifies how much the head is moving
 6. **Adaptive threshold** = `base + gain × flow_rms` — tightens during stillness, loosens during head movement
 7. **Classification** compares the relative feature against the (adaptive or fixed) threshold
 
