@@ -11,12 +11,12 @@ A web-based toolkit for processing eye-tracking gaze data and classifying it int
 1. [Quick Start](#quick-start)
 2. [How to Use — Stationary Eye Tracker](#how-to-use--stationary-eye-tracker)
 3. [How to Use — Head-Mounted Eye Tracker](#how-to-use--head-mounted-eye-tracker)
-4. [Recommended Parameters](#recommended-parameters)
-5. [Output Reference](#output-reference)
-6. [Toolkit Structure](#toolkit-structure)
-7. [How the Pipeline Works](#how-the-pipeline-works)
-8. [Detection Algorithms Explained](#detection-algorithms-explained)
-9. [Features Overview](#features-overview)
+4. [Papers and Datasets](#papers-and-datasets)
+5. [Recommended Parameters](#recommended-parameters)
+6. [Output Reference](#output-reference)
+7. [Toolkit Structure](#toolkit-structure)
+8. [How the Pipeline Works](#how-the-pipeline-works)
+9. [Detection Algorithms Explained](#detection-algorithms-explained)
 10. [Troubleshooting](#troubleshooting)
 
 ---
@@ -118,10 +118,14 @@ For head-mounted eye trackers that record gaze data, optical flow from the scene
 
 Upload **two files**:
 
-1. **Dataset ZIP** (max 100 MB) — archive of `.npy` arrays
-2. **Scene Camera Video** (max 500 MB) — `.mp4` from the head-mounted camera
+1. **Dataset ZIP** (max 100 MB) — archive of dataset files
+2. **Scene Camera Video** (max 5 GB) — `.mp4` from the head-mounted camera
 
-#### Required files inside the ZIP
+OpenGazeLab auto-detects the dataset layout from the ZIP contents. Two layouts ship out of the box; bring your own data in either shape.
+
+#### Layout A — Drews & Dierkes (DD) style: `.npy` arrays
+
+##### Required files inside the ZIP
 
 | File | Shape | Description |
 |------|-------|-------------|
@@ -131,13 +135,38 @@ Upload **two files**:
 | `time_optic_flow.npy` | (M,) | Optical flow frame timestamps in seconds |
 | `time_scene_camera.npy` | (M,) | Scene camera frame timestamps in seconds |
 
-#### Optional files
+##### Optional files
 
 | File | Shape | Description |
 |------|-------|-------------|
 | `gt_labels.npy` | (N,) | Ground truth labels (1 = Fixation, 0 = Saccade). Triggers automatic F1 score computation. |
 
 `.npy` files may live at the ZIP root or inside a single subfolder.
+
+#### Layout B — Gaze-in-Wild (GiW) style: `.mat` files + pre-computed flow
+
+##### Required files inside the ZIP
+
+| File | Description |
+|------|-------------|
+| `PrIdx_<P>_TrIdx_<T>.mat` | GiW signals file (exactly one). Filename participant/trial IDs are parsed to apply the labeler-priority rule. Provides gaze (`ProcessData.ETG.POR`), timestamps (`ProcessData.T`), and per-sample frame indices. |
+| `PrIdx_<P>_TrIdx_<T>_Lbr_<N>.mat` | One or more labeler annotation files. `LabelData.Labels` is an integer per-sample event class. |
+| `optic_flow.npy` | `(M, 2)` per-frame mean optical flow (NeuFlow output or any pre-averaged equivalent). `*_neuflow.npy` is also accepted. |
+
+##### How GiW labels are handled
+
+GiW labels have six classes (UNDEFINED, FIXATION, PURSUIT, SACCADE, BLINK, FOLLOWING). OpenGazeLab collapses them to binary so the existing F1 scoring applies:
+
+- **stable gaze (1)** = `FIXATION ∪ FOLLOWING` — i.e. eye-only fixation plus head+eye co-rotation tracking an attended target. This matches Lukas Wilde's TCN preprocessing convention.
+- **everything else (0)** = `SACCADE ∪ PURSUIT ∪ BLINK ∪ UNDEFINED`
+
+Strict-fixation alone is rare in real-world recordings (~1% of samples on the trials we inspected), which is why following is lumped in.
+
+When multiple labelers are present, OpenGazeLab uses the priority rule from Kothari et al.: trial 1 → labeler 5; otherwise prefer labeler 6, then 5, 1, 2, 3.
+
+Triggers automatic F1 score computation just like a DD upload with `gt_labels.npy`.
+
+Files may live at the ZIP root or inside any subfolder.
 
 ### Configuration
 
@@ -166,27 +195,61 @@ After clicking **"Process Video Data"**, you get:
 
 ---
 
+## Papers and Datasets
+
+OpenGazeLab can be used with both stationary and head-mounted eye-tracking datasets. The references below pair each dataset with the related paper or publication page.
+
+### Stationary Eye Tracker
+
+| Reference |  |  |
+|-----------|-------|---------|
+| Disagreement Detection | [Paper](https://dl.acm.org/doi/pdf/10.1145/3772318.3790594) | [Dataset](https://github.com/DFKI-Interactive-Machine-Learning/Disagreement-Detection-Dataset-CHI-26) |
+| gazeRE | [Paper](https://www.frontiersin.org/journals/computer-science/articles/10.3389/fcomp.2021.808507/full) | [Dataset](https://github.com/DFKI-Interactive-Machine-Learning/gazeRE-dataset) |
+
+### Head-Mounted Eye Tracker
+
+| Reference |  |  |
+|-----------|-------|---------|
+| Drews & Dierkes (DD) | [Paper](https://link.springer.com/article/10.3758/s13428-024-02360-0) | [Dataset](https://osf.io/8en9v/overview) |
+| Gaze-in-Wild (GiW) | [Paper](https://www.nature.com/articles/s41598-020-59251-5#Sec14) | [Dataset](https://www.cis.rit.edu/~rsk3900/gaze-in-wild/)  (Disclaimer: The website is no longer available, try this [repository](https://bitbucket.org/RSKothari/gaze-in-wild/src/master/) instead) |
+
+---
+
 ## Recommended Parameters
 
-In our paper *"Local Optical Flow for Eye Movement Event Detection in Head-Mounted Setups"*, we swept over a range of possible parameter values and reported the best one. The adaptive-threshold defaults in OpenGazeLab are the best values from our paper for Drews & Dierkes (2024) dataset ([OSF: 8en9v](https://osf.io/8en9v/overview), *"Strategies for enhancing automatic fixation detection in head-mounted eye tracking"*). 
+The head-mounted defaults below are based on our parameter sweeps on the DD dataset listed in [Papers and Datasets](#papers-and-datasets). Treat them as practical starting points for other recordings, especially when the headset, scene-camera resolution, or sampling rate differs.
 
-### Adaptive-threshold defaults
+### Adaptive-threshold suggestions
 
 | Parameter | Default | Justification |
 |-----------|---------|---------------|
 | `gain` | **0.05** | We swept gain over a wide range. **I-DT** performed best at `gain = 0`. **I-VT** performed best across `gain ∈ {0.4, 0.6, 0.7, 0.8}`. We chose **0.05** as a small, conservative compromise that nudges the threshold up under head motion without dominating either algorithm. |
-| `window_size_ms` | **55.0** | Consistently the best window size across all parameter sweeps in the paper. |
+| `window_size_ms` | **55.0** | Consistently the best window size across the DD parameter sweeps. |
 
 ### Detection-threshold suggestions
 
-These values are the per-algorithm best detection thresholds we found on the Drews & Dierkes dataset:
+These values are the per-algorithm best detection thresholds found on the DD dataset:
 
 | Algorithm | Suggested `detection_threshold` | Units |
 |-----------|--------------------------------|-------|
 | **I-DT** | **30** | relative-dispersion threshold in pixels |
-| **I-VT** | **1** | relative-velocity threshold in px/ms |
+| **I-VT** | **1.5** | relative-velocity threshold in px/ms |
 
-For datasets recorded with a different headset, scene-camera resolution, or sampling rate, treat these as starting points and tune from there.
+Tune these values for datasets recorded with a different headset, scene-camera resolution, or sampling rate.
+
+### Recommended GiW parameters
+
+Starting points for Gaze-in-Wild recordings. Replace the _TBD_ cells with values from your own parameter sweep.
+
+| Parameter | Suggested value | Notes |
+|-----------|-----------------|-------|
+| Video Resolution | `1920,1080` | GiW scene-camera native resolution |
+| Sampling Rate | `300` | GiW gaze sampling rate |
+| Min Fixation Duration | _TBD_ | Fill from sweep |
+| I-DT detection threshold | _TBD_ | Fill from sweep |
+| I-VT detection threshold | _TBD_ | Fill from sweep |
+| Adaptive-threshold `gain` | _TBD_ | Fill from sweep |
+| Adaptive-threshold `window_size_ms` | _TBD_ | Fill from sweep |
 
 ---
 
@@ -225,7 +288,12 @@ OpenGazeLab/
 │       ├── algorithms.py                  # I-DT and I-VT classifiers
 │       ├── feature_extraction.py          # I-VAT+Frel: Savgol smoothing, flow velocity, adaptive threshold
 │       ├── preprocess_csv.py              # CSV parsing: delimiter/column/normalization auto-detection
-│       ├── preprocess_headmounted.py      # Loader for .npy ZIP + scene video (Pupil Invisible format)
+│       ├── preprocess_headmounted/        # Head-mounted loader package
+│       │   ├── __init__.py                # Re-exports the public API
+│       │   ├── common.py                  # Shared helpers (extract_video_metadata)
+│       │   ├── dd.py                      # DD (.npy) loader
+│       │   ├── giw.py                     # GiW (.mat) loader
+│       │   └── dispatcher.py              # Auto-routes DD vs GiW by ZIP contents
 │       ├── utils.py                       # Velocity, MAD, fixation merging, timestamp helpers
 │       └── visualization/
 │           ├── __init__.py                # Visualization public exports
@@ -255,7 +323,7 @@ OpenGazeLab/
 | [algorithms.py](backend/src/algorithms.py) | The two core detection algorithms: `classify_idt` (dispersion) and `classify_ivt` (velocity) |
 | [feature_extraction.py](backend/src/feature_extraction.py) | Head-mounted enhancements: Savitzky-Golay smoothing, flow velocity, relative velocity/dispersion, adaptive thresholds |
 | [preprocess_csv.py](backend/src/preprocess_csv.py) | Reads CSV files: detects delimiter, column names, and coordinate normalization |
-| [preprocess_headmounted.py](backend/src/preprocess_headmounted.py) | Reads `.npy` ZIP archives, aligns gaze with video frames |
+| [preprocess_headmounted/](backend/src/preprocess_headmounted/) | Head-mounted loader package. Contains `dd.py` (Drews `.npy` loader), `giw.py` (Gaze-in-Wild `.mat` loader), `common.py` (shared video-metadata helper), and `dispatcher.py` (auto-routes uploads by inspecting the ZIP — any `.mat` entry → GiW, otherwise DD). |
 | [utils.py](backend/src/utils.py) | Math helpers — velocity, MAD, fixation merging, timestamp normalization |
 | [visualization/stationary_plot.py](backend/src/visualization/stationary_plot.py) | Builds the static Plotly chart |
 | [visualization/time_scrolling_plot.py](backend/src/visualization/time_scrolling_plot.py) | Builds the animated playback Plotly chart |
@@ -270,7 +338,7 @@ End-to-end data flow for a single upload:
 
 ```
 1. UPLOAD              Browser sends file(s) + parameters → FastAPI
-2. PARSE               preprocess_csv.py / preprocess_headmounted.py
+2. PARSE               preprocess_csv.py / preprocess_headmounted/ (auto-routes DD vs GiW)
                        → DataFrame with x, y, timestamp (+ flow data for head-mounted)
 3. NORMALIZE           pipeline.py — denormalize coords if needed,
                        convert timestamps to ms, separate invalid samples

@@ -1,5 +1,4 @@
-"""Head-mounted eye-tracker preprocessing: load .npy datasets and scene
-videos for the Pupil Invisible / Drews dataset format.
+"""Head-mounted eye-tracker preprocessing for the Drews & Dierkes (DD) dataset.
 
 Expected files inside the dataset ZIP (matched by basename, so they may
 sit at the archive root or in any single subfolder):
@@ -31,13 +30,16 @@ _REQUIRED_NPY_FILES = (
 _OPTIONAL_NPY_FILES = ("gt_labels.npy",)
 
 
-def load_npy_dataset(zip_path: str, sampling_rate_hz: float):
+def load_npy_dataset(zip_path: str, sampling_rate_hz: float, video_path: str | None = None):
     """Load a head-mounted eye-tracking dataset from a ZIP of .npy files.
 
     Args:
         zip_path: Path to the ZIP file containing .npy files.
         sampling_rate_hz: Gaze sampling rate in Hz, supplied by the caller.
             The loader does not infer it from the data.
+        video_path: Unused by the DD loader; accepted for signature symmetry
+            with :func:`load_giw_dataset` so the dispatcher can call both
+            uniformly.
 
     Returns:
         Tuple ``(DataFrame, metadata_dict)``.
@@ -48,6 +50,8 @@ def load_npy_dataset(zip_path: str, sampling_rate_hz: float):
         ``metadata_dict`` keys: ``video_start_time``, ``sampling_rate_hz``,
         ``has_gt_labels``, ``n_gaze_samples``, ``n_video_frames``.
     """
+    del video_path  # signature symmetry only — DD has its own scene-camera timestamps
+
     tmp_dir = tempfile.mkdtemp(prefix="eyetrack_npy_")
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -62,29 +66,6 @@ def load_npy_dataset(zip_path: str, sampling_rate_hz: float):
         return _load_from_paths(extracted, sampling_rate_hz)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-def extract_video_metadata(video_path: str) -> dict:
-    """Read fps / resolution / duration from a video file via OpenCV."""
-    import cv2
-
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise ValueError(f"Cannot open video file: {video_path}")
-    try:
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        return {
-            "fps": fps,
-            "width": width,
-            "height": height,
-            "duration_s": n_frames / fps if fps > 0 else 0.0,
-            "n_frames": n_frames,
-        }
-    finally:
-        cap.release()
 
 
 # ---------------------------------------------------------------------------

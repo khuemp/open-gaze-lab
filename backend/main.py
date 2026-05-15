@@ -4,7 +4,9 @@ Exposes two upload endpoints — one for screen-based CSVs, one for
 head-mounted ZIP+MP4 datasets — plus result/asset retrieval routes.
 The actual data preparation, detection, and visualization live in
 ``src/`` (see :mod:`src.preprocess_csv`, :mod:`src.preprocess_headmounted`,
-:mod:`src.pipeline`, and :mod:`src.visualization`).
+:mod:`src.pipeline`, and :mod:`src.visualization`). The head-mounted
+subpackage holds three loaders (DD, GiW) and a dispatcher that routes each
+upload by inspecting the ZIP contents.
 """
 
 import os
@@ -23,7 +25,7 @@ from src import (
     extract_video_metadata,
     generate_video_gaze_visualization,
     load_csv_gaze_data,
-    load_npy_dataset,
+    load_head_mounted_dataset,
 )
 
 
@@ -57,7 +59,7 @@ VISUALIZATION_FOLDER.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024     # 50 MB CSV
 MAX_IMAGE_SIZE = 20 * 1024 * 1024    # 20 MB background image
-MAX_VIDEO_SIZE = 500 * 1024 * 1024   # 500 MB scene video
+MAX_VIDEO_SIZE = 5 * 1024 * 1024 * 1024   # 5 GB scene video (GiW recordings can be ~4 GB)
 MAX_ZIP_SIZE = 100 * 1024 * 1024     # 100 MB dataset ZIP
 
 
@@ -301,7 +303,7 @@ async def upload_video_dataset(
         raise HTTPException(status_code=400, detail="ZIP file exceeds 100MB limit")
     video_content = await video.read()
     if len(video_content) > MAX_VIDEO_SIZE:
-        raise HTTPException(status_code=400, detail="Video file exceeds 500MB limit")
+        raise HTTPException(status_code=400, detail="Video file exceeds 5 GB limit")
 
     width, height = _parse_resolution(resolution)
     output_name = Path(video.filename).stem
@@ -345,7 +347,11 @@ def process_video_dataset(zip_path, video_path, video_save_name, output_name,
                           sampling_rate, adapt=False, fallback_resolution=(1920, 1080)):
     """Run detection + video overlay visualization for a head-mounted dataset."""
     try:
-        gaze_df, metadata = load_npy_dataset(zip_path, sampling_rate_hz=sampling_rate)
+        gaze_df, metadata = load_head_mounted_dataset(
+            zip_path,
+            sampling_rate_hz=sampling_rate,
+            video_path=video_path,
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to load dataset: {e}")
 

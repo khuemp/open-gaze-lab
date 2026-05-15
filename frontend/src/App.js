@@ -382,8 +382,8 @@ function App() {
                                     inputId="zip-input"
                                     fileName={datasetZip?.name}
                                     onFileSelect={setDatasetZip}
-                                    placeholderText="Select ZIP (.npy) dataset"
-                                    hintText="gaze, time_gaze, optic_flow, time_optic_flow, time_scene_camera, (gt_labels)"
+                                    placeholderText="Select ZIP dataset"
+                                    hintText="Drews & Dierkes or Gaze-in-Wild layout"
                                     selectedText="Dataset ready"
                                 />
                                 <Upload
