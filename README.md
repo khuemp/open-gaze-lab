@@ -11,7 +11,7 @@ A web-based toolkit for processing eye-tracking gaze data and classifying it int
 1. [Quick Start](#quick-start)
 2. [How to Use — Stationary Eye Tracker](#how-to-use--stationary-eye-tracker)
 3. [How to Use — Head-Mounted Eye Tracker](#how-to-use--head-mounted-eye-tracker)
-4. [Papers and Datasets](#papers-and-datasets)
+4. [Input Reference](#input-reference)
 5. [Recommended Parameters](#recommended-parameters)
 6. [Output Reference](#output-reference)
 7. [Toolkit Structure](#toolkit-structure)
@@ -66,7 +66,7 @@ For screen-based / desktop eye trackers that record gaze coordinates in a CSV fi
 
 #### CSV format
 
-The CSV needs three columns. Names are detected automatically (common variants supported):
+The CSV needs three columns. Names and units are auto-detected as either pixels or normalized (0–1) for gaze, and milliseconds, seconds, or epoch for time(common variants supported, [see Input Reference](#input-reference))
 
 | Column meaning | Accepted names | Units |
 |----------------|----------------|-------|
@@ -121,7 +121,7 @@ Upload **two files**:
 1. **Dataset ZIP** (max 100 MB) — archive of dataset files
 2. **Scene Camera Video** (max 5 GB) — `.mp4` from the head-mounted camera
 
-OpenGazeLab auto-detects the dataset layout from the ZIP contents. Two layouts ship out of the box; bring your own data in either shape.
+OpenGazeLab auto-detects the dataset layout from the ZIP contents. Two layouts ship out of the box; bring your own data in either shape ([see Input Reference](#input-reference)).
 
 #### Layout A — Drews & Dierkes (DD) style: `.npy` arrays
 
@@ -150,14 +150,14 @@ OpenGazeLab auto-detects the dataset layout from the ZIP contents. Two layouts s
 | File | Description |
 |------|-------------|
 | `PrIdx_<P>_TrIdx_<T>.mat` | GiW signals file (exactly one). Filename participant/trial IDs are parsed to apply the labeler-priority rule. Provides gaze (`ProcessData.ETG.POR`), timestamps (`ProcessData.T`), and per-sample frame indices. |
-| `PrIdx_<P>_TrIdx_<T>_Lbr_<N>.mat` | One or more labeler annotation files. `LabelData.Labels` is an integer per-sample event class. |
+| `PrIdx_<P>_TrIdx_<T>_Lbr_<N>.mat` | One or more labeler annotation files. |
 | `optic_flow.npy` | `(M, 2)` per-frame mean optical flow (NeuFlow output or any pre-averaged equivalent). `*_neuflow.npy` is also accepted. |
 
 ##### How GiW labels are handled
 
 GiW labels have six classes (UNDEFINED, FIXATION, PURSUIT, SACCADE, BLINK, FOLLOWING). OpenGazeLab collapses them to binary so the existing F1 scoring applies:
 
-- **stable gaze (1)** = `FIXATION ∪ FOLLOWING` — i.e. eye-only fixation plus head+eye co-rotation tracking an attended target. This matches Lukas Wilde's TCN preprocessing convention.
+- **stable gaze (1)** = `FIXATION ∪ FOLLOWING` — i.e. eye-only fixation plus head+eye co-rotation tracking an attended target.
 - **everything else (0)** = `SACCADE ∪ PURSUIT ∪ BLINK ∪ UNDEFINED`
 
 Strict-fixation alone is rare in real-world recordings (~1% of samples on the trials we inspected), which is why following is lumped in.
@@ -195,9 +195,9 @@ After clicking **"Process Video Data"**, you get:
 
 ---
 
-## Papers and Datasets
+## Input Reference
 
-OpenGazeLab can be used with both stationary and head-mounted eye-tracking datasets. The references below pair each dataset with the related paper or publication page.
+OpenGazeLab can be used with both stationary and head-mounted eye-tracking datasets. The required input files and their formats differ between these two modes. Below is a reference for the example expected inputs in each case.
 
 ### Stationary Eye Tracker
 
@@ -224,7 +224,7 @@ The adaptive-threshold path on the Head-Mounted tab takes two user inputs, `gain
 - **`gain`** — multiplier applied to the rolling RMS of optical-flow velocity. The per-sample threshold is computed as `detection_threshold + gain × flow_rms_mag`, so a larger `gain` pushes the threshold up more aggressively under head motion. With `gain = 0`, the motion-driven adjustment is disabled (the threshold equals `detection_threshold` for every sample).
 - **`window_size_ms`** — length of the centered rolling window used to compute the flow-RMS magnitude. Shorter windows track rapid head movements more closely; longer windows produce a smoother, less reactive threshold.
 
-The recommendations below come from our parameter sweeps on the DD and GiW datasets listed in [Papers and Datasets](#papers-and-datasets). Treat them as practical starting points — tune for recordings on different headsets, scene cameras, or sampling rates.
+The recommendations below come from our parameter sweeps on the DD and GiW datasets listed in [Input Reference](#input-reference). Treat them as practical starting points — tune for recordings on different headsets, scene cameras, or sampling rates.
 
 | Dataset | Algorithm | `gain`                 | `window_size_ms` |
 |---------|-----------|------------------------|-------------------|
@@ -237,7 +237,7 @@ The recommendations below come from our parameter sweeps on the DD and GiW datas
 
 These values are the per-algorithm best detection thresholds found on the DD dataset:
 
-| Algorithm | Suggested `detection_threshold` | Units |
+| Algorithm |`detection_threshold` | Units |
 |-----------|--------------------------------|-------|
 | **I-DT** | **30** | relative-dispersion threshold in pixels |
 | **I-VT** | **1.5** | relative-velocity threshold in px/ms |
@@ -293,7 +293,7 @@ OpenGazeLab/
 │       ├── __init__.py                    # Public exports (EventDetection, EyeTrackingVisualizer)
 │       ├── pipeline.py                    # EventDetection — orchestrates the full pipeline
 │       ├── algorithms.py                  # I-DT and I-VT classifiers
-│       ├── feature_extraction.py          # I-VAT+Frel: Savgol smoothing, flow velocity, adaptive threshold
+│       ├── feature_extraction.py          # Head-mounted pipeline: Savgol smoothing, flow velocity, adaptive threshold
 │       ├── preprocess_csv.py              # CSV parsing: delimiter/column/normalization auto-detection
 │       ├── preprocess_headmounted/        # Head-mounted loader package
 │       │   ├── __init__.py                # Re-exports the public API
@@ -308,9 +308,9 @@ OpenGazeLab/
 │           ├── time_scrolling_plot.py     # Animated Plotly with playback controls
 │           ├── video_overlay.py           # HTML5 video + canvas gaze overlay
 │           └── _image_utils.py            # Encodes images as base64 for Plotly embedding
-│   # data/ is created at runtime:
-│   #   data/events/         — processed event CSVs (downloadable)
-│   #   data/visualization/  — generated HTML visualizations and stored scene videos
+│   └── data/                              # Created at runtime
+│       ├── events/                        # Processed event CSVs (downloadable)
+│       └── visualization/                 # Generated HTML visualizations and stored scene videos
 │
 └── frontend/                              # Static web UI (port 8000)
     ├── index.html                         # HTML entry point
@@ -328,7 +328,7 @@ OpenGazeLab/
 | [main.py](backend/main.py) | FastAPI app. Defines endpoints `/api/upload`, `/api/upload-video`, `/api/plot/*`, `/api/plot-video/*`, `/api/video/*` |
 | [pipeline.py](backend/src/pipeline.py) | `EventDetection` class — entry point that runs the full workflow: normalize → preprocess → detect → post-process |
 | [algorithms.py](backend/src/algorithms.py) | The two core detection algorithms: `classify_idt` (dispersion) and `classify_ivt` (velocity) |
-| [feature_extraction.py](backend/src/feature_extraction.py) | Head-mounted enhancements: Savitzky-Golay smoothing, flow velocity, relative velocity/dispersion, adaptive thresholds |
+| [feature_extraction.py](backend/src/feature_extraction.py) | Head-mounted pipeline: Savitzky-Golay smoothing, flow velocity, relative velocity/dispersion, adaptive thresholds |
 | [preprocess_csv.py](backend/src/preprocess_csv.py) | Reads CSV files: detects delimiter, column names, and coordinate normalization |
 | [preprocess_headmounted/](backend/src/preprocess_headmounted/) | Head-mounted loader package. Contains `dd.py` (Drews `.npy` loader), `giw.py` (Gaze-in-Wild `.mat` loader), `common.py` (shared video-metadata helper), and `dispatcher.py` (auto-routes uploads by inspecting the ZIP — any `.mat` entry → GiW, otherwise DD). |
 | [utils.py](backend/src/utils.py) | Math helpers — velocity, MAD, fixation merging, timestamp normalization |
@@ -345,19 +345,12 @@ End-to-end data flow for a single upload:
 
 ```
 1. UPLOAD              Browser sends file(s) + parameters → FastAPI
-2. PARSE               preprocess_csv.py / preprocess_headmounted/ (auto-routes DD vs GiW)
-                       → DataFrame with x, y, timestamp (+ flow data for head-mounted)
-3. NORMALIZE           pipeline.py — denormalize coords if needed,
-                       convert timestamps to ms, separate invalid samples
-4. FEATURE EXTRACTION  feature_extraction.py (head-mounted only)
-                       → Savgol smoothing, gaze velocity, flow velocity,
-                         relative velocity / relative dispersion, adaptive threshold
-5. CLASSIFY            algorithms.py — I-DT or I-VT labels each sample
-                       as Fixation or Saccade
-6. POST-PROCESS        utils.py — merge nearby fixations, renumber IDs,
-                       reinsert invalid samples with reason
-7. VISUALIZE           visualization/ — generate Plotly HTML and/or
-                       video-overlay HTML
+2. PARSE               preprocess_csv.py / preprocess_headmounted/ (auto-routes DD vs GiW) → DataFrame with x, y, timestamp (+ flow data for head-mounted)
+3. NORMALIZE           pipeline.py — denormalize coords if needed, convert timestamps to ms, separate invalid samples
+4. FEATURE EXTRACTION  feature_extraction.py (head-mounted only) → Savgol smoothing, gaze velocity, flow velocity, relative velocity / relative dispersion, adaptive threshold
+5. CLASSIFY            algorithms.py — I-DT or I-VT labels each sample as Fixation or Saccade
+6. POST-PROCESS        utils.py — merge nearby fixations, renumber IDs, reinsert invalid samples with reason
+7. VISUALIZE           visualization/ — generate Plotly HTML and/or video-overlay HTML
 8. RESPOND             Send statistics + visualization URLs to frontend
 ```
 
@@ -369,22 +362,20 @@ End-to-end data flow for a single upload:
 Classifies a window of samples as a **fixation** when their spatial dispersion stays below a threshold.
 - **Dispersion formula**: `(max_x − min_x) + (max_y − min_y)` in pixels
 - **Best for**: Low sampling rate, noisy data, stationary trackers
-- **Typical threshold**: 100–200 pixels (stationary), ~30 px (head-mounted, on relative dispersion)
 
 ### I-VT (Velocity-Threshold Identification)
 Classifies each sample as a **fixation** when point-to-point velocity stays below a threshold.
 - **Velocity formula**: `sqrt(dx² + dy²) / dt` in pixels/ms
 - **Best for**: High sampling rate, clean data
-- **Typical threshold**: 20–50 px/ms (stationary), ~1.0 px/ms (head-mounted, on relative velocity)
 
 ### Head-Mounted Enhanced Pipeline
 A variant designed for head-mounted trackers, where head motion contaminates raw gaze velocity / dispersion. It feeds either the I-DT or the I-VT classifier with flow-compensated features:
 
-1. **Savitzky-Golay smoothing** (55 ms window) on raw gaze coordinates
+1. **Savitzky-Golay smoothing** (55 ms window, 3rd order) on raw gaze coordinates
 2. **Flow velocity** extracted from the optical flow grid (head/camera motion)
 3. **For I-VT**: gaze velocity from smoothed coordinates, then **relative velocity** = `gaze_velocity − flow_velocity` — isolates true eye movement
 4. **For I-DT**: **relative dispersion** — gaze dispersion measured against a flow-integrated "ideal" trajectory, removing apparent motion caused by head movement
-5. **Flow RMS** quantifies how much the head is moving
+5. **Flow RMS** = `sqrt(mean(flow_x_vel²) + mean(flow_y_vel²))` where `flow_x_vel, flow_y_vel = flow_x, flow_y / flow_t_delta` — quantifies how much the head is moving
 6. **Adaptive threshold** = `base + gain × flow_rms` — tightens during stillness, loosens during head movement
 7. **Classification** compares the relative feature against the (adaptive or fixed) threshold
 
@@ -404,7 +395,7 @@ A variant designed for head-mounted trackers, where head motion contaminates raw
 ## Troubleshooting
 
 ### Backend won't start
-- Ensure Python 3.11 or below is installed
+- Ensure Python 3.10 or below is installed
 - Install dependencies: `pip install -r backend/requirements.txt`
 - Check whether port 5000 is in use; change it if needed
 - Read the console for the actual error

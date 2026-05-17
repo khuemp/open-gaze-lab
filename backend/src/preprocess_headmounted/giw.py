@@ -25,8 +25,7 @@ from .common import extract_video_metadata
 # collapse: FIXATION (1) and FOLLOWING (5). Following = head+eye co-rotation
 # tracking an attended target; in real-world recordings strict fixation alone
 # is rare (~1% of samples), so we lump it with following to match what the
-# OpenGazeLab F1 scoring treats as Fixation. Lukas's preprocess_tcn.py uses
-# the same lump when feeding TCN training data. Saccade, pursuit, blink, and
+# OpenGazeLab F1 scoring treats as Fixation. Saccade, pursuit, blink, and
 # undefined all collapse to 0.
 _STABLE_GAZE_VALUES = (1, 5)
 
@@ -184,7 +183,7 @@ def _load_signals(signals_path: str):
 
 
 def _load_and_collapse_labels(label_paths: list[str], trial_id: int | None) -> np.ndarray:
-    """Apply Lukas's priority rule, then collapse FIXATION ∪ FOLLOWING → 1, else → 0."""
+    """Apply priority rule, then collapse FIXATION ∪ FOLLOWING → 1, else → 0."""
     by_id: dict[int, np.ndarray] = {}
     for path in label_paths:
         basename = os.path.basename(path)

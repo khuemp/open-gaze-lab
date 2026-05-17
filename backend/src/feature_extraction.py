@@ -1,4 +1,4 @@
-"""I-VAT+Frel feature extraction for enhanced event detection.
+"""Head-mounted feature extraction for enhanced event detection.
 
 Per-sample DSP transformations (Savitzky-Golay smoothing, gaze/flow
 velocity, relative velocity, dispersion variants, adaptive threshold)
@@ -6,7 +6,7 @@ that the I-DT / I-VT classifiers consume when a sampling rate and
 optical-flow columns are available.
 
 Based on: *Strategies for enhancing automatic fixation detection in
-head-mounted eye tracking* — the I-VAT+Frel variant (Adaptive Velocity
+head-mounted eye tracking* — the head-mounted variant (Adaptive Velocity
 Threshold with Head-Motion Compensation).
 """
 
@@ -258,7 +258,7 @@ def preprocess_gaze_data(
     *,
     use_ivt: bool,
 ) -> dict:
-    """Run the I-VAT+Frel feature pipeline on *df* (in-place).
+    """Run the head-mounted feature pipeline on *df* (in-place).
 
     Only the columns the chosen classifier will consume are produced:
 

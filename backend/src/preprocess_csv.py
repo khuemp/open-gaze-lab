@@ -40,7 +40,7 @@ def detect_column_mapping(df: pd.DataFrame) -> dict:
 
     Returns a dict with at least ``x``, ``y``, ``timestamp`` when those are
     found. Optional keys: ``flow_x``, ``flow_y``, ``video_timestamp`` (used
-    by the I-VAT+Frel head-motion compensation pipeline).
+    by the head-mounted head-motion compensation pipeline).
     """
     columns_lower = {col.lower(): col for col in df.columns}
     mapping: dict = {}

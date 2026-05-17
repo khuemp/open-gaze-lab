@@ -2,7 +2,7 @@
 (velocity threshold).
 
 Both algorithms share the preparation step in
-:func:`prepare_classification_data`, which optionally runs the I-VAT+Frel
+:func:`prepare_classification_data`, which optionally runs the head-mounted
 preprocessing pipeline (Savgol smoothing, gaze/flow velocity, relative
 dispersion, adaptive threshold) when a sampling rate and optical-flow
 columns are available. Without those inputs the classifiers fall back to
@@ -30,7 +30,7 @@ def prepare_classification_data(gaze_data: pd.DataFrame,
                                 window_size_ms: float = 0.0) -> tuple:
     """Build the shared inputs for ``classify_idt`` / ``classify_ivt``.
 
-    With *sampling_rate* and optical-flow columns the I-VAT+Frel pipeline
+    With *sampling_rate* and optical-flow columns the head-mounted pipeline
     runs in :func:`preprocess_gaze_data`. When *adapt* is set,
     :func:`apply_adaptive_threshold` then picks the flow-RMS per-sample path
     (writing a ``threshold`` column) or the MAD scalar fallback automatically.
@@ -120,7 +120,7 @@ def classify_idt(gaze_data, dispersion_threshold, min_fixation_duration, samplin
                  adapt=False, gain=0.0, window_size_ms=0.0):
     """I-DT (dispersion threshold) fixation/saccade classifier.
 
-    With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
+    With ``sampling_rate`` and optical-flow columns the head-mounted pipeline
     runs and per-sample dispersion is read from ``rel_dispersion``;
     otherwise the legacy expanding-window dispersion on raw coordinates is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
@@ -197,7 +197,7 @@ def classify_ivt(gaze_data, velocity_threshold, min_fixation_duration, sampling_
                  adapt=False, gain=0.0, window_size_ms=0.0):
     """I-VT (velocity threshold) fixation/saccade classifier.
 
-    With ``sampling_rate`` and optical-flow columns the I-VAT+Frel pipeline
+    With ``sampling_rate`` and optical-flow columns the head-mounted pipeline
     runs and the per-sample velocity column ``vel_rel_mag`` (or ``vel_mag``
     without flow) is used; otherwise the legacy point-to-point velocity is used.
     Pass ``sampling_rate=None`` to skip preprocessing entirely.
