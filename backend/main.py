@@ -178,8 +178,8 @@ async def upload_file(
 
 def process_gaze_data(csv_content, resolution, min_fixation_duration,
                       detection_threshold, algorithm, sampling_rate, output_name,
-                      fixation_merge_threshold=None, adapt=False, bg_image_path=None,
-                      y_origin="top-left"):
+                      fixation_merge_threshold=None, bg_image_path=None,
+                      *, adapt, y_origin):
     """Run detection + both visualizations for a screen-based CSV upload."""
     gaze_data, column_mapping, is_normalized = load_csv_gaze_data(csv_content)
 
@@ -196,6 +196,8 @@ def process_gaze_data(csv_content, resolution, min_fixation_duration,
         sampling_rate=sampling_rate,
         fixation_merge_threshold=fixation_merge_threshold,
         adapt=adapt,
+        gain=0.0,
+        window_size_ms=0.0,
     )
 
     events_output_file = EVENTS_FOLDER / f"{output_name}_events.csv"
@@ -348,8 +350,8 @@ async def upload_video_dataset(
 
 def process_video_dataset(zip_path, video_path, video_save_name, output_name,
                           min_fixation_duration, detection_threshold, algorithm,
-                          sampling_rate, adapt=False, gain=0.0, window_size_ms=0.0,
-                          fallback_resolution=(1920, 1080)):
+                          sampling_rate, *, adapt, gain, window_size_ms,
+                          fallback_resolution):
     """Run detection + video overlay visualization for a head-mounted dataset."""
     try:
         gaze_df, metadata = load_head_mounted_dataset(

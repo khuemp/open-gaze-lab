@@ -127,7 +127,7 @@ class EventDetection:
 
     def detect_event(self, min_fixation_duration, algorithm, detection_threshold,
                      sampling_rate, fixation_merge_threshold=None,
-                     adapt=False, gain=0.0, window_size_ms=0.0):
+                     *, adapt, gain, window_size_ms):
         """Run fixation/saccade detection on ``self.gaze_data``.
 
         All numerical parameters are required and must be supplied by the caller
@@ -192,7 +192,7 @@ class EventDetection:
 
     def process_event(self, min_fixation_duration, algorithm, detection_threshold,
                       sampling_rate, fixation_merge_threshold: float = None,
-                      adapt=False, gain: float = 0.0, window_size_ms: float = 0.0,
+                      *, adapt: bool, gain: float, window_size_ms: float,
                       correct_timestamps_flag: bool = True):
         """Run the full detection + cleaning pipeline.
 
