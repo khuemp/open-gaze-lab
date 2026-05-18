@@ -151,7 +151,7 @@ OpenGazeLab auto-detects the dataset layout from the ZIP contents. Two layouts s
 |------|-------------|
 | `PrIdx_<P>_TrIdx_<T>.mat` | GiW signals file (exactly one). Filename participant/trial IDs are parsed to apply the labeler-priority rule. Provides gaze (`ProcessData.ETG.POR`), timestamps (`ProcessData.T`), and per-sample frame indices. |
 | `PrIdx_<P>_TrIdx_<T>_Lbr_<N>.mat` | One or more labeler annotation files. |
-| `optic_flow.npy` | `(M, 2)` per-frame mean optical flow (NeuFlow output or any pre-averaged equivalent). `*_neuflow.npy` is also accepted. |
+| `optic_flow.npy` | `(M, 2)` per-frame mean optical flow |
 
 ##### How GiW labels are handled
 

@@ -5,7 +5,7 @@ at the archive root or in any subfolder):
 
 * ``PrIdx_<P>_TrIdx_<T>.mat``        signals (gaze + timestamps + frame indices)
 * ``PrIdx_<P>_TrIdx_<T>_Lbr_<N>.mat`` one or more labeler annotation files
-* ``optic_flow.npy`` (or ``*_neuflow.npy``) ``(M, 2)`` per-frame mean flow
+* ``optic_flow.npy`` ``(M, 2)`` per-frame mean flow
 """
 
 import os
@@ -109,7 +109,7 @@ def _extract_giw_files(zf: zipfile.ZipFile, dest_dir: str) -> dict:
         is_label = bool(_LABEL_RE.search(basename))
         is_signals = lower.endswith(".mat") and not is_label
         is_flow = lower.endswith(".npy") and (
-            lower == "optic_flow.npy" or lower.endswith("_neuflow.npy")
+            lower == "optic_flow.npy"
         )
 
         if not (is_label or is_signals or is_flow):
@@ -132,7 +132,6 @@ def _extract_giw_files(zf: zipfile.ZipFile, dest_dir: str) -> dict:
             if flow_path is not None:
                 raise ValueError(
                     "GiW ZIP must contain exactly one optic_flow.npy "
-                    "(or *_neuflow.npy); found multiple."
                 )
             flow_path = out_path
 
@@ -148,7 +147,7 @@ def _extract_giw_files(zf: zipfile.ZipFile, dest_dir: str) -> dict:
         )
     if flow_path is None:
         raise FileNotFoundError(
-            "GiW ZIP must contain optic_flow.npy (or *_neuflow.npy) with shape (M, 2)."
+            "GiW ZIP must contain optic_flow.npy with shape (M, 2)."
         )
 
     return {"signals": signals_path, "labels": label_paths, "flow": flow_path}
