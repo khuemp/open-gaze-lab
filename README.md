@@ -1,8 +1,12 @@
 # OpenGazeLab
 
-A web-based toolkit for processing eye-tracking gaze data and classifying it into **fixations** (eyes holding still on a target) and **saccades** (rapid eye movements between targets). Supports both **stationary eye trackers** and **head-mounted eye trackers**. Provides a Python processing pipeline and a browser-based UI for researchers working with eye-tracking data.
+A web-based toolkit for processing eye-tracking gaze data and classifying it into **fixations** (eyes holding still on a target) and **saccades** (rapid eye movements between targets). Supports both **stationary eye trackers** and **head-mounted eye trackers**.
 
-> **Note**: Python 3.10 recommended.
+**→ [Open the toolkit](https://khuemp.github.io/open-gaze-lab/)** — nothing to install.
+
+The entire pipeline runs inside your browser via [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly). There is no server and no upload: your recordings are read from disk by the page itself and never leave your machine. The first visit downloads about 25 MB of Python runtime, which the browser then caches.
+
+The same code is also an ordinary Python package, so you can drive the pipeline from a notebook or script — see [Use from Python](#use-from-python).
 
 ---
 
@@ -23,33 +27,48 @@ A web-based toolkit for processing eye-tracking gaze data and classifying it int
 
 ## Quick Start
 
-### Installation
-```bash
-cd backend
-pip install -r requirements.txt
+Go to **[khuemp.github.io/open-gaze-lab](https://khuemp.github.io/open-gaze-lab/)**, pick a mode (Stationary or Head-Mounted), and follow the steps below. No installation, no account, no upload.
 
+A recent Chrome, Firefox, Edge or Safari is required (WebAssembly and module workers).
+
+### Run locally
+
+Only needed if you want to modify the toolkit.
+
+```bash
 cd frontend
 npm install
+npm run dev
+# → http://localhost:5173/open-gaze-lab/
 ```
 
-### Run the App
+`npm run dev` first bundles `backend/opengazelab/` into `public/opengazelab.zip` and downloads the Plotly wheel; both are regenerated automatically and are not committed. Editing Python requires a refresh (the bundle is rebuilt on server start), while editing JSX hot-reloads as usual.
 
-**Option A — Windows:** Double-click [start_servers.bat](start_servers.bat) in the project root. Two terminals open and start both servers automatically.
+### Use from Python
 
-**Option B — Manual:**
+The detection pipeline is a normal package — no browser involved:
+
 ```bash
-# Terminal 1 — Backend
-cd backend
-python main.py
-# → Backend runs at http://127.0.0.1:5000
-
-# Terminal 2 — Frontend
-cd frontend
-npm run start
-# → Frontend opens at http://localhost:8000
+pip install -e backend            # add [native] for the OpenCV video-metadata reader
 ```
 
-Open the frontend URL in your browser, pick a mode (Stationary or Head-Mounted), and follow the steps below.
+```python
+from opengazelab import EventDetection, load_csv_gaze_data
+
+gaze, mapping, normalized = load_csv_gaze_data(open("gaze.csv", "rb").read())
+detector = EventDetection(gaze, resolution=(1920, 1080),
+                          column_mapping=mapping, is_normalized=normalized)
+events = detector.process_event(
+    algorithm="idt", detection_threshold=125, min_fixation_duration=50,
+    sampling_rate=250, adapt=False, gain=0.0, window_size_ms=0.0,
+)
+```
+
+`opengazelab.web_api` holds the two high-level entry points the website calls (`process_stationary`, `process_head_mounted`) if you want the plots and summary in one call.
+
+### Deploying
+
+Pushing to `main` or `web_based` on GitHub triggers [.github/workflows/deploy.yml](.github/workflows/deploy.yml), which builds the site and publishes it to GitHub Pages. Enable **Settings → Pages → Source: GitHub Actions** once, on first setup. The Vite `base` path is derived from the repository name, so forks published under a different name work without edits.
 
 ---
 
@@ -283,59 +302,76 @@ Head-mounted output additionally includes `flow_x`, `flow_y`, `video_timestamp`,
 
 ```
 OpenGazeLab/
-├── start_servers.bat                      # Windows one-click startup
 ├── README.md                              # This file
+├── .github/workflows/deploy.yml           # Builds and publishes the site to GitHub Pages
 │
-├── backend/                               # Python FastAPI server (port 5000)
-│   ├── main.py                            # API endpoints (upload, plot, video streaming)
-│   ├── requirements.txt                   # Python dependencies
-│   └── src/
+├── backend/                               # Python package — runs in the browser AND natively
+│   ├── pyproject.toml                     # Installable as `pip install -e backend`
+│   └── opengazelab/
 │       ├── __init__.py                    # Public exports (EventDetection, EyeTrackingVisualizer)
+│       ├── web_api.py                     # Browser entry points — return HTML/CSV strings, write no files
 │       ├── pipeline.py                    # EventDetection — orchestrates the full pipeline
 │       ├── algorithms.py                  # I-DT and I-VT classifiers
 │       ├── feature_extraction.py          # Head-mounted pipeline: Savgol smoothing, flow velocity, adaptive threshold
 │       ├── preprocess_csv.py              # CSV parsing: delimiter/column/normalization auto-detection
 │       ├── preprocess_headmounted/        # Head-mounted loader package
 │       │   ├── __init__.py                # Re-exports the public API
-│       │   ├── common.py                  # Shared helpers (extract_video_metadata)
+│       │   ├── common.py                  # Video metadata: JS-supplied in the browser, OpenCV natively
 │       │   ├── dd.py                      # DD (.npy) loader
 │       │   ├── giw.py                     # GiW (.mat) loader
 │       │   └── dispatcher.py              # Auto-routes DD vs GiW by ZIP contents
-│       ├── utils.py                       # Velocity, MAD, fixation merging, timestamp helpers
+│       ├── utils.py                       # Velocity, MAD, F1, fixation merging, timestamp helpers
 │       └── visualization/
 │           ├── __init__.py                # Visualization public exports
 │           ├── stationary_plot.py         # Static Plotly: gaze + fixations + scanpath
 │           ├── time_scrolling_plot.py     # Animated Plotly with playback controls
 │           ├── video_overlay.py           # HTML5 video + canvas gaze overlay
+│           ├── _plot_output.py            # Renders a Plotly figure to a standalone HTML string
 │           └── _image_utils.py            # Encodes images as base64 for Plotly embedding
-│   └── data/                              # Created at runtime
-│       ├── events/                        # Processed event CSVs (downloadable)
-│       └── visualization/                 # Generated HTML visualizations and stored scene videos
 │
-└── frontend/                              # Static web UI (port 8000)
+└── frontend/                              # Vite + React static site
     ├── index.html                         # HTML entry point
-    ├── package.json                       # Uses http-server (no build step)
-    ├── package-lock.json
+    ├── vite.config.js                     # Base path, worker format, bundle-hash injection
+    ├── scripts/
+    │   ├── pack-python.mjs                # Zips backend/opengazelab/ into public/ for the worker
+    │   └── fetch-wheels.mjs               # Vendors the Plotly wheel into public/wheels/
     └── src/
-        ├── App.js                         # React app — mode toggle, upload forms, results display
-        └── App.css                        # Styles
+        ├── main.jsx                       # React root
+        ├── App.jsx                        # Mode toggle, upload forms, results display
+        ├── App.css                        # Styles
+        ├── pyodide/
+        │   ├── worker.js                  # Loads Pyodide + the package; runs the pipeline off-thread
+        │   └── client.js                  # Promise-based RPC and progress events
+        └── video/probeVideo.js            # Reads fps/resolution from the MP4 container (mp4box.js)
 ```
+
+### How the browser build works
+
+1. `scripts/pack-python.mjs` zips `backend/opengazelab/` into `frontend/public/`.
+2. On page load, `pyodide/client.js` spawns the worker, which downloads Pyodide 0.28.3 from jsDelivr, loads numpy/pandas/plotly, and unpacks that zip into Pyodide's in-memory filesystem.
+3. Uploads are handed to the worker as transferable `ArrayBuffer`s and passed to `web_api.process_stationary` / `process_head_mounted`.
+4. The returned HTML and CSV strings become blob URLs that feed the result iframes and the download link.
+
+Two constraints shaped this:
+
+- **Pyodide is pinned to 0.28.3** because it ships pandas 2.3.1 / numpy 2.2.5 / scipy 1.14.1, matching what the pipeline was validated against. Later releases ship pandas 3.x, whose copy-on-write semantics change assignment behaviour throughout the pipeline. Re-run the checks below before bumping it.
+- **OpenCV cannot read video in WebAssembly** — its wasm build has no codecs, and OpenCV.js has the same limitation. So `probeVideo.js` parses the MP4 container with mp4box.js and passes the result to `register_video_metadata()`. Natively, `extract_video_metadata()` still falls back to OpenCV.
 
 ### What each backend file does
 
 | File | Role |
 |------|------|
-| [main.py](backend/main.py) | FastAPI app. Defines endpoints `/api/upload`, `/api/upload-video`, `/api/plot/*`, `/api/plot-video/*`, `/api/video/*` |
-| [pipeline.py](backend/src/pipeline.py) | `EventDetection` class — entry point that runs the full workflow: normalize → preprocess → detect → post-process |
-| [algorithms.py](backend/src/algorithms.py) | The two core detection algorithms: `classify_idt` (dispersion) and `classify_ivt` (velocity) |
-| [feature_extraction.py](backend/src/feature_extraction.py) | Head-mounted pipeline: Savitzky-Golay smoothing, flow velocity, relative velocity/dispersion, adaptive thresholds |
-| [preprocess_csv.py](backend/src/preprocess_csv.py) | Reads CSV files: detects delimiter, column names, and coordinate normalization |
-| [preprocess_headmounted/](backend/src/preprocess_headmounted/) | Head-mounted loader package. Contains `dd.py` (Drews `.npy` loader), `giw.py` (Gaze-in-Wild `.mat` loader), `common.py` (shared video-metadata helper), and `dispatcher.py` (auto-routes uploads by inspecting the ZIP — any `.mat` entry → GiW, otherwise DD). |
-| [utils.py](backend/src/utils.py) | Math helpers — velocity, MAD, fixation merging, timestamp normalization |
-| [visualization/stationary_plot.py](backend/src/visualization/stationary_plot.py) | Builds the static Plotly chart |
-| [visualization/time_scrolling_plot.py](backend/src/visualization/time_scrolling_plot.py) | Builds the animated playback Plotly chart |
-| [visualization/video_overlay.py](backend/src/visualization/video_overlay.py) | Generates a self-contained HTML page with video + canvas gaze overlay |
-| [visualization/_image_utils.py](backend/src/visualization/_image_utils.py) | Encodes background images as base64 data URIs for embedding in Plotly |
+| [web_api.py](backend/opengazelab/web_api.py) | The two entry points the browser calls: `process_stationary` and `process_head_mounted`. Validates parameters and returns the events CSV and plot HTML as strings — it writes no files. |
+| [pipeline.py](backend/opengazelab/pipeline.py) | `EventDetection` class — entry point that runs the full workflow: normalize → preprocess → detect → post-process |
+| [algorithms.py](backend/opengazelab/algorithms.py) | The two core detection algorithms: `classify_idt` (dispersion) and `classify_ivt` (velocity) |
+| [feature_extraction.py](backend/opengazelab/feature_extraction.py) | Head-mounted pipeline: Savitzky-Golay smoothing, flow velocity, relative velocity/dispersion, adaptive thresholds |
+| [preprocess_csv.py](backend/opengazelab/preprocess_csv.py) | Reads CSV files: detects delimiter, column names, and coordinate normalization |
+| [preprocess_headmounted/](backend/opengazelab/preprocess_headmounted/) | Head-mounted loader package. Contains `dd.py` (Drews `.npy` loader), `giw.py` (Gaze-in-Wild `.mat` loader), `common.py` (shared video-metadata helper), and `dispatcher.py` (auto-routes uploads by inspecting the ZIP — any `.mat` entry → GiW, otherwise DD). |
+| [utils.py](backend/opengazelab/utils.py) | Math helpers — velocity, MAD, fixation merging, timestamp normalization |
+| [visualization/stationary_plot.py](backend/opengazelab/visualization/stationary_plot.py) | Builds the static Plotly chart |
+| [visualization/time_scrolling_plot.py](backend/opengazelab/visualization/time_scrolling_plot.py) | Builds the animated playback Plotly chart |
+| [visualization/video_overlay.py](backend/opengazelab/visualization/video_overlay.py) | Generates a self-contained HTML page with video + canvas gaze overlay |
+| [visualization/_image_utils.py](backend/opengazelab/visualization/_image_utils.py) | Encodes background images as base64 data URIs for embedding in Plotly |
 
 ---
 
@@ -394,17 +430,13 @@ A variant designed for head-mounted trackers, where head motion contaminates raw
 
 ## Troubleshooting
 
-### Backend won't start
-- Ensure Python 3.10 or below is installed
-- Install dependencies: `pip install -r backend/requirements.txt`
-- Check whether port 5000 is in use; change it if needed
-- Read the console for the actual error
+### The page sits on "Downloading the Python runtime"
+- The first visit fetches roughly 25 MB from the jsDelivr CDN; on a slow link this takes a while. Later visits are served from the browser cache.
+- Corporate proxies and strict content blockers sometimes block `cdn.jsdelivr.net`. Check the browser console for blocked requests.
+- Private/incognito windows re-download every time, since the cache is discarded.
 
-### Frontend can't connect to backend
-- Backend must be running on `http://127.0.0.1:5000`
-- Frontend must be on `http://localhost:8000`
-- Check the browser console for CORS errors
-- Restart both servers
+### The frame rate box is empty after selecting a video
+- The MP4's `moov` atom could not be parsed — usually a non-MP4 container with an `.mp4` extension, or a truncated recording. Type the scene camera's frame rate in manually; it is the only value the pipeline cannot infer.
 
 ### Processing fails
 - Check that the CSV has gaze columns and a timestamp (any of the supported names)

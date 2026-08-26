@@ -1,12 +1,26 @@
 {
-    "name": "frontend",
+    "name": "opengazelab-frontend",
     "version": "1.0.0",
-    "description": "OpenGazeLab Frontend",
+    "description": "OpenGazeLab - browser-based eye-tracking event detection",
+    "private": true,
+    "type": "module",
     "scripts": {
-        "start": "http-server -p 8000 -c-1 -o",
-        "dev": "http-server -p 8000 -c-1 -o"
+        "pack-python": "node scripts/pack-python.mjs",
+        "fetch-wheels": "node scripts/fetch-wheels.mjs",
+        "predev": "npm run pack-python && npm run fetch-wheels",
+        "dev": "vite",
+        "prebuild": "npm run pack-python && npm run fetch-wheels",
+        "build": "vite build",
+        "preview": "vite preview"
     },
     "dependencies": {
-        "http-server": "^14.1.1"
+        "mp4box": "^2.4.1",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^6.1.0",
+        "fflate": "^0.8.2",
+        "vite": "^8.2.2"
     }
 }

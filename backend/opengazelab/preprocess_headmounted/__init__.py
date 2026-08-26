@@ -11,13 +11,19 @@ Both loaders return ``(DataFrame, metadata_dict)`` with identical schemas so
 downstream pipeline code stays dataset-agnostic.
 """
 
-from .common import extract_video_metadata
+from .common import (
+    clear_video_metadata,
+    extract_video_metadata,
+    register_video_metadata,
+)
 from .dd import load_npy_dataset
 from .dispatcher import load_head_mounted_dataset
 from .giw import load_giw_dataset
 
 __all__ = [
     "extract_video_metadata",
+    "register_video_metadata",
+    "clear_video_metadata",
     "load_npy_dataset",
     "load_giw_dataset",
     "load_head_mounted_dataset",

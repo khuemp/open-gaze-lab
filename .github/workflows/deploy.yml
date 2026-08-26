@@ -1,0 +1,65 @@
+name: Deploy to GitHub Pages
+
+# Builds the static site and publishes it. This runs on push — visitors never
+# trigger a build, they just download the prebuilt files Pages serves.
+on:
+  push:
+    branches: [main, web_based]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      # `prebuild` zips backend/opengazelab into public/ and downloads the
+      # Plotly wheel, so the built site carries its own Python payload.
+      - name: Build
+        run: npm run build
+        env:
+          # GitHub Pages serves project sites from /<repo>/, so every asset
+          # URL needs that prefix. Derived from the repo name so a fork
+          # published under a different name still resolves correctly.
+          VITE_BASE: /${{ github.event.repository.name }}/
+
+      # enablement turns Pages on via the API if it isn't already, so the very
+      # first push works without visiting the repository settings by hand.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

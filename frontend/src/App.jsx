@@ -1,4 +1,13 @@
-const { useState } = React;
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+import {
+    onProgress,
+    readFileBytes,
+    runHeadMounted,
+    runStationary,
+    warmUp,
+} from './pyodide/client.js';
+import { probeVideoMetadata } from './video/probeVideo.js';
 
 // NumericInput component that only accepts numbers
 function NumericInput({ id, value, onChange, placeholder, className, allowDecimal = true, allowNegative = false }) {
@@ -47,13 +56,53 @@ function NumericInput({ id, value, onChange, placeholder, className, allowDecima
     );
 }
 
-function App() {
-    const appendIfPresent = (formData, key, value) => {
-        if (value !== '') {
-            formData.append(key, value);
-        }
-    };
+// ---------------------------------------------------------------------------
+// Parameter parsing
+//
+// The FastAPI layer used to validate these server-side and return HTTP 400.
+// With the pipeline running in-page there is no request to reject, so the same
+// checks happen here and surface through the existing error banner.
+// ---------------------------------------------------------------------------
 
+/** Throw a single message naming every empty required field. */
+function requireFields(fields) {
+    const missing = Object.entries(fields)
+        .filter(([, value]) => value === '' || value === null || value === undefined)
+        .map(([label]) => label);
+    if (missing.length > 0) {
+        throw new Error(`Please fill in: ${missing.join(', ')}`);
+    }
+}
+
+function parseResolution(text) {
+    const parts = text.split(',').map((part) => Number(part.trim()));
+    if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n) || n <= 0)) {
+        throw new Error("Resolution must be 'width,height' — for example 1920,1080");
+    }
+    return parts;
+}
+
+/** Optional numeric field: '' means "not set" and stays null. */
+const optionalNumber = (value) => (value === '' ? null : Number(value));
+
+/** Filename without its extension, used to name the downloaded CSV. */
+const fileStem = (name) => name.replace(/\.[^./\\]+$/, '');
+
+const fileExtension = (name) => {
+    const match = name.match(/\.([^./\\]+)$/);
+    return match ? match[1].toLowerCase() : 'png';
+};
+
+const STAGE_LABELS = {
+    runtime: 'Downloading the Python runtime (one-time, then cached)',
+    packages: 'Loading scientific packages',
+    package: 'Unpacking OpenGazeLab',
+    detecting: 'Detecting fixations and saccades',
+    ready: 'Ready',
+    idle: '',
+};
+
+function App() {
     // Mode toggle
     const [mode, setMode] = useState('stationary'); // 'stationary' | 'headmounted'
 
@@ -80,20 +129,72 @@ function App() {
     const [hmAdapt, setHmAdapt] = useState(false);
     const [hmGain, setHmGain] = useState('');
     const [hmWindowSizeMs, setHmWindowSizeMs] = useState('');
+    const [hmFps, setHmFps] = useState('');
 
-    // Shared state
+    // Video probing — replaces what cv2 used to read off the file server-side
+    const [videoMeta, setVideoMeta] = useState(null);
+    const [probing, setProbing] = useState(false);
+
+    // Results / status
     const [stationaryResults, setStationaryResults] = useState(null);
     const [hmResults, setHmResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [stage, setStage] = useState('runtime');
+
+    // The overlay player streams the scene video straight from the user's disk
+    // through a blob URL. It has to outlive the request that produced the
+    // results HTML, so it is revoked only when replaced or on unmount.
+    const videoUrlRef = useRef(null);
+
+    const releaseVideoUrl = useCallback(() => {
+        if (videoUrlRef.current) {
+            URL.revokeObjectURL(videoUrlRef.current);
+            videoUrlRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => onProgress(({ stage: next }) => setStage(next)), []);
+
+    // Start the ~25 MB runtime download immediately, so it overlaps with the
+    // user picking files and filling in parameters rather than beginning when
+    // they press Process.
+    useEffect(() => {
+        warmUp().catch((err) => setError(`Could not start the Python runtime: ${err.message}`));
+    }, []);
+
+    useEffect(() => releaseVideoUrl, [releaseVideoUrl]);
 
     const handleBackgroundImageSelect = (selectedFile) => {
         setBackgroundImage(selectedFile);
+        setError(null);
     };
 
     const handleFileSelect = (selectedFile) => {
         setFile(selectedFile);
         setError(null);
+    };
+
+    /** Probe fps/resolution as soon as a video is chosen, not at process time. */
+    const handleVideoSelect = async (selectedFile) => {
+        setVideoFile(selectedFile);
+        setError(null);
+        setVideoMeta(null);
+
+        if (!selectedFile) return;
+
+        setProbing(true);
+        try {
+            const meta = await probeVideoMetadata(selectedFile);
+            setVideoMeta(meta);
+            if (meta.fps > 0) setHmFps(String(Number(meta.fps.toFixed(3))));
+            if (meta.width > 0 && meta.height > 0) {
+                setHmResolution(`${meta.width},${meta.height}`);
+            }
+            if (meta.warning) setError(meta.warning);
+        } finally {
+            setProbing(false);
+        }
     };
 
     const handleModeSwitch = (newMode) => {
@@ -102,79 +203,93 @@ function App() {
     };
 
     const handleProcessHeadMounted = async () => {
-        setLoading(true);
-        setError(null);
-        setHmResults(null);
+        requireFields({
+            'Screen Resolution': hmResolution,
+            'Sampling Rate': hmSamplingRate,
+            'Min Fixation Duration': hmMinFixation,
+            'Detection Threshold': hmThreshold,
+            Algorithm: hmAlgorithm,
+            'Video FPS': hmFps,
+        });
 
-        try {
-            const formData = new FormData();
-            formData.append('dataset_zip', datasetZip);
-            formData.append('video', videoFile);
-            appendIfPresent(formData, 'resolution', hmResolution);
-            appendIfPresent(formData, 'min_fixation_duration', hmMinFixation);
-            appendIfPresent(formData, 'detection_threshold', hmThreshold);
-            appendIfPresent(formData, 'algorithm', hmAlgorithm);
-            appendIfPresent(formData, 'sampling_rate', hmSamplingRate);
-            formData.append('adapt', hmAdapt.toString());
-            appendIfPresent(formData, 'gain', hmGain);
-            appendIfPresent(formData, 'window_size_ms', hmWindowSizeMs);
-
-            const response = await fetch('http://127.0.0.1:5000/api/upload-video', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || `API error: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            setHmResults(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error processing video data');
-        } finally {
-            setLoading(false);
+        const [width, height] = parseResolution(hmResolution);
+        const fps = Number(hmFps);
+        if (!Number.isFinite(fps) || fps <= 0) {
+            throw new Error('Video FPS must be greater than zero.');
         }
+
+        const durationSeconds = videoMeta?.duration_s ?? 0;
+        const zipBytes = await readFileBytes(datasetZip);
+
+        releaseVideoUrl();
+        videoUrlRef.current = URL.createObjectURL(videoFile);
+
+        const result = await runHeadMounted({
+            zipBytes,
+            videoMeta: {
+                fps,
+                width,
+                height,
+                duration_s: durationSeconds,
+                // Prefer the exact container frame count; derive one only when
+                // the probe could not supply it or the user overrode the fps.
+                n_frames: videoMeta?.n_frames || Math.round(fps * durationSeconds),
+            },
+            videoUrl: videoUrlRef.current,
+            resolution: [width, height],
+            algorithm: hmAlgorithm,
+            samplingRate: Number(hmSamplingRate),
+            minFixationDuration: Number(hmMinFixation),
+            detectionThreshold: Number(hmThreshold),
+            adapt: hmAdapt,
+            gain: hmGain === '' ? 0 : Number(hmGain),
+            windowSizeMs: hmWindowSizeMs === '' ? 0 : Number(hmWindowSizeMs),
+        });
+
+        setHmResults({ ...result, filename: fileStem(videoFile.name) });
     };
 
     const handleProcessStationary = async () => {
-        if (!file) {
-            setError('Please select a CSV file first');
-            return;
-        }
+        requireFields({
+            'Screen Resolution': resolution,
+            'Sampling Rate': samplingRate,
+            'Minimal Fixation Duration': minFixationDuration,
+            'Detection Threshold': detectionThreshold,
+            Algorithm: algorithm,
+            'Y-Origin': yOrigin,
+        });
 
+        const [width, height] = parseResolution(resolution);
+
+        const result = await runStationary({
+            csvBytes: await readFileBytes(file),
+            resolution: [width, height],
+            algorithm,
+            samplingRate: Number(samplingRate),
+            minFixationDuration: Number(minFixationDuration),
+            detectionThreshold: Number(detectionThreshold),
+            yOrigin,
+            fixationMergeThreshold: optionalNumber(fixationMergeThreshold),
+            adapt,
+            backgroundImageBytes: backgroundImage ? await readFileBytes(backgroundImage) : null,
+            backgroundImageExt: backgroundImage ? fileExtension(backgroundImage.name) : null,
+        });
+
+        setStationaryResults({ ...result, filename: fileStem(file.name) });
+    };
+
+    const handleProcess = async () => {
         setLoading(true);
         setError(null);
-        setStationaryResults(null);
 
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            appendIfPresent(formData, 'resolution', resolution);
-            appendIfPresent(formData, 'min_fixation_duration', minFixationDuration);
-            appendIfPresent(formData, 'detection_threshold', detectionThreshold);
-            appendIfPresent(formData, 'algorithm', algorithm);
-            appendIfPresent(formData, 'sampling_rate', samplingRate);
-            appendIfPresent(formData, 'fixation_merge_threshold', fixationMergeThreshold);
-            formData.append('adapt', adapt.toString());
-            appendIfPresent(formData, 'y_origin', yOrigin);
-            if (backgroundImage) {
-                formData.append('background_image', backgroundImage);
+            if (mode === 'headmounted') {
+                setHmResults(null);
+                await handleProcessHeadMounted();
+            } else {
+                setStationaryResults(null);
+                await handleProcessStationary();
             }
-
-            const response = await fetch('http://127.0.0.1:5000/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || errorData.error || `API error: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            setStationaryResults(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error processing gaze data');
         } finally {
@@ -182,13 +297,7 @@ function App() {
         }
     };
 
-    const handleProcess = async () => {
-        if (mode === 'headmounted') {
-            return handleProcessHeadMounted();
-        }
-
-        return handleProcessStationary();
-    };
+    const stageLabel = STAGE_LABELS[stage] ?? '';
 
     return (
         <div className="container">
@@ -208,6 +317,9 @@ function App() {
                         Head-Mounted Eye Tracker
                     </button>
                 </div>
+                <p className="privacy-note">
+                    Everything runs in your browser. Your recordings are never uploaded.
+                </p>
             </header>
 
             <main className="main-content">
@@ -398,10 +510,18 @@ function App() {
                                     icon={ICON_VIDEO}
                                     inputId="video-input"
                                     fileName={videoFile?.name}
-                                    onFileSelect={setVideoFile}
+                                    onFileSelect={handleVideoSelect}
                                     placeholderText="Select MP4 video"
                                     hintText="Scene camera recording"
-                                    selectedText="Video ready"
+                                    selectedText={
+                                        probing
+                                            ? 'Reading video metadata...'
+                                            : videoMeta
+                                                ? `${videoMeta.width}x${videoMeta.height}, `
+                                                  + `${videoMeta.fps.toFixed(2)} fps, `
+                                                  + `${videoMeta.n_frames} frames`
+                                                : 'Video ready'
+                                    }
                                 />
                             </div>
                         </div>
@@ -433,6 +553,22 @@ function App() {
                                         placeholder="1088,1080"
                                         className="input-field"
                                     />
+                                </div>
+
+                                <div className="control-group">
+                                    <label htmlFor="hm-fps">Video FPS</label>
+                                    <NumericInput
+                                        id="hm-fps"
+                                        value={hmFps}
+                                        onChange={setHmFps}
+                                        placeholder="25"
+                                        className="input-field"
+                                    />
+                                    <p className="field-hint">
+                                        {videoMeta?.source === 'mp4box'
+                                            ? 'Read from the video container'
+                                            : 'Enter the scene camera frame rate'}
+                                    </p>
                                 </div>
 
                                 <div className="control-group">
@@ -508,7 +644,7 @@ function App() {
                             <button
                                 className="process-button"
                                 onClick={handleProcess}
-                                disabled={loading || !datasetZip || !videoFile}
+                                disabled={loading || probing || !datasetZip || !videoFile}
                             >
                                 {loading ? 'Processing...' : 'Process Gaze Data'}
                             </button>
@@ -518,7 +654,15 @@ function App() {
 
                 {error && <div className="error-message">{error}</div>}
 
-                {loading && <div className="loading-spinner">Processing...</div>}
+                {loading && (
+                    <div className="loading-spinner">
+                        {stageLabel || 'Processing...'}
+                    </div>
+                )}
+
+                {!loading && stage !== 'idle' && stage !== 'ready' && (
+                    <div className="runtime-status">{stageLabel}</div>
+                )}
 
                 {stationaryResults && mode === 'stationary' && (
                     <ResultsDisplay results={stationaryResults} variant="stationary" />
@@ -575,7 +719,7 @@ function Upload({
     extraClass = '',
     selectedExtra = null,
 }) {
-    const [isDragging, setIsDragging] = React.useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     const handleFile = (file) => {
         if (validate(file)) onFileSelect(file);
@@ -641,12 +785,41 @@ function Upload({
     );
 }
 
-function ResultsDisplay({ results, variant = 'stationary' }) {
-    const r = results.result || {};
-    const isHm = variant === 'headmounted';
-    const [videoFrameHeight, setVideoFrameHeight] = React.useState(1000);
+/**
+ * Turn a string produced in Python into an object URL for this render.
+ *
+ * The plots reach ~7 MB, which is too much for an iframe `srcdoc` attribute,
+ * so each becomes a blob served to the iframe instead. Blob documents inherit
+ * this page's origin, so the video overlay can still load the scene video's
+ * own blob URL and postMessage its height back to us.
+ */
+function useBlobUrl(content, type) {
+    const [url, setUrl] = useState(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
+        if (!content) {
+            setUrl(null);
+            return undefined;
+        }
+        const objectUrl = URL.createObjectURL(new Blob([content], { type }));
+        setUrl(objectUrl);
+        return () => URL.revokeObjectURL(objectUrl);
+    }, [content, type]);
+
+    return url;
+}
+
+function ResultsDisplay({ results, variant = 'stationary' }) {
+    const r = results.summary || {};
+    const isHm = variant === 'headmounted';
+    const [videoFrameHeight, setVideoFrameHeight] = useState(1000);
+
+    const csvUrl = useBlobUrl(results.events_csv, 'text/csv');
+    const plotUrl = useBlobUrl(results.plot_html, 'text/html');
+    const timePlotUrl = useBlobUrl(results.time_plot_html, 'text/html');
+    const videoPlotUrl = useBlobUrl(results.video_plot_html, 'text/html');
+
+    useEffect(() => {
         if (!isHm) return undefined;
         const handleMessage = (event) => {
             if (event.data?.type !== 'video-gaze-visualization-height') return;
@@ -666,11 +839,11 @@ function ResultsDisplay({ results, variant = 'stationary' }) {
         <div className="results-container">
             <div className="results-header">
                 <h2>Detection Results</h2>
-                {r.events_file && (
+                {csvUrl && (
                     <a
-                        href={`http://127.0.0.1:5000/api/results/${results.filename}`}
+                        href={csvUrl}
                         className="download-button"
-                        download
+                        download={`${results.filename}_events.csv`}
                     >
                         Download Events CSV
                     </a>
@@ -731,37 +904,33 @@ function ResultsDisplay({ results, variant = 'stationary' }) {
                 </div>
             </div>
 
-            {results.message && (
-                <div className="results-message"><p>{results.message}</p></div>
-            )}
-
-            {!isHm && r.plot_file && (
+            {!isHm && plotUrl && (
                 <div className="plot-container">
                     <h3>Stationary Visualization</h3>
                     <iframe
-                        src={`http://127.0.0.1:5000/api/plot/${results.filename}`}
+                        src={plotUrl}
                         title="Stationary Plot"
                         className="plot-iframe"
                     />
                 </div>
             )}
 
-            {!isHm && r.time_plot_file && (
+            {!isHm && timePlotUrl && (
                 <div className="plot-container">
                     <h3>Time-Scrolling Visualization</h3>
                     <iframe
-                        src={`http://127.0.0.1:5000/api/plot-time/${results.filename}`}
+                        src={timePlotUrl}
                         title="Time-Scrolling Plot"
                         className="plot-iframe"
                     />
                 </div>
             )}
 
-            {isHm && r.video_plot_file && (
+            {isHm && videoPlotUrl && (
                 <div className="plot-container video-plot-container">
                     <h3>Video Gaze Overlay Visualization</h3>
                     <iframe
-                        src={`http://127.0.0.1:5000/api/plot-video/${results.filename}`}
+                        src={videoPlotUrl}
                         title="Video Gaze Overlay"
                         className="plot-iframe video-iframe"
                         scrolling="no"
@@ -773,6 +942,4 @@ function ResultsDisplay({ results, variant = 'stationary' }) {
     );
 }
 
-// Render app
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+export default App;

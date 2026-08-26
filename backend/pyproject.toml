@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opengazelab"
+version = "1.0.0"
+description = "Fixation and saccade detection for stationary and head-mounted eye-tracking data"
+# No `readme`: the README lives at the repository root, outside this project
+# directory, which build backends reject. See ../README.md.
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "plotly",
+]
+
+# OpenCV is only used to read fps/resolution off a video file when running
+# natively. In the browser the host page probes the container in JS and calls
+# opengazelab.register_video_metadata() instead, so cv2 is never imported.
+[project.optional-dependencies]
+native = ["opencv-python>=4.8.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["opengazelab"]

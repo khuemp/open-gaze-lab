@@ -1,5 +1,8 @@
 # Python
 __pycache__/
+*.egg-info/
+build/
+dist/
 
 # Data files
 data_example/
@@ -7,3 +10,11 @@ data/
 
 # Dependencies
 node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Generated at build time by scripts/pack-python.mjs and scripts/fetch-wheels.mjs
+frontend/public/opengazelab.zip
+frontend/public/wheels/
+frontend/.python-bundle-hash

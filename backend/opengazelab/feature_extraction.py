@@ -12,7 +12,6 @@ Threshold with Head-Motion Compensation).
 
 import numpy as np
 import pandas as pd
-from scipy.signal import savgol_filter
 
 from .utils import compute_velocity, compute_mad
 
@@ -29,7 +28,13 @@ def apply_savgol_filter(
     """Apply a Savitzky-Golay low-pass filter to gaze coordinates.
 
     Adds ``filter_x`` and ``filter_y`` columns.
+
+    SciPy is imported here rather than at module scope: this whole module only
+    runs on the head-mounted (optical-flow) path, so the browser build can skip
+    downloading SciPy's ~13 MB wasm wheel for plain CSV uploads.
     """
+    from scipy.signal import savgol_filter
+
     frame_duration_ms = 1000.0 / sampling_rate
     window_size = int(window_size_ms // frame_duration_ms)
     if window_size < polyorder + 2:

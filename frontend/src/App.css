@@ -322,6 +322,29 @@ body {
     grid-column: 1 / -1;
 }
 
+/* Pyodide startup progress, shown while the runtime downloads in the
+   background so the page doesn't look idle during the first visit. */
+.runtime-status {
+    text-align: center;
+    padding: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-style: italic;
+    grid-column: 1 / -1;
+}
+
+.privacy-note {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.field-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
 /* Results */
 .results-container {
     background: var(--surface);

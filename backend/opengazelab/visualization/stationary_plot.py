@@ -1,11 +1,11 @@
 import plotly.graph_objs as go
-import plotly.offline as pyo
 
-from ._image_utils import encode_image_base64
+from ._image_utils import resolve_image_source
+from ._plot_output import render_figure_html
 
 
-def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=None, show_attach=True,
-                                    attach_type='bbox', y_origin='top-left'):
+def plot_gaze_points_and_fixations(self, output_path=None, bg_image_path=None, aois=None,
+                                    show_attach=True, attach_type='bbox', y_origin='top-left'):
     """Creates an interactive visualization of gaze data, fixations, and AOIs.
 
     Generates a Plotly-based interactive plot showing gaze samples, fixations, and
@@ -13,8 +13,10 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
     and different styles of AOI visualization.
 
     Args:
-        output_dir (str): Path where the HTML plot file will be saved
-        bg_image_path (str, optional): Path to background image file. Defaults to None.
+        output_path (str, optional): When given, the HTML is also written here.
+            The HTML is always returned regardless. Defaults to None.
+        bg_image_path (str, optional): Path to a background image file, or a
+            ready-made "data:" URI. Defaults to None.
         aois (pd.DataFrame, optional): AOI definitions with columns:
             - aoi_type (str): Category of the AOI
             - aoi (str): Name of the AOI
@@ -33,7 +35,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             Defaults to 'top-left'.
 
     Returns:
-        None: Saves an interactive HTML plot to the specified output directory
+        str: The interactive plot as a self-contained HTML document.
 
     Notes:
         Requires self.event_data_df to contain:
@@ -152,7 +154,7 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
 
     if bg_image_path is not None:
         try:
-            image_source = encode_image_base64(bg_image_path)
+            image_source = resolve_image_source(bg_image_path)
             # Position image at the visual top-left corner of the plot.
             # Plotly layout images always extend rightward and downward in
             # pixel space from the anchor, so we always use xanchor='left'
@@ -216,7 +218,6 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
                 hoverinfo='skip'
             ))
 
-    # Save the figure to an HTML file
     plot_config = {
         'toImageButtonOptions': {
             'format': 'png',
@@ -225,4 +226,4 @@ def plot_gaze_points_and_fixations(self, output_dir, bg_image_path=None, aois=No
             'scale': 3
         }
     }
-    pyo.plot(fig, filename=output_dir, auto_open=False, config=plot_config)
+    return render_figure_html(fig, plot_config, output_path)

@@ -16,7 +16,6 @@ import zipfile
 
 import numpy as np
 import pandas as pd
-from scipy.io import loadmat
 
 from .common import extract_video_metadata
 
@@ -161,7 +160,13 @@ def _parse_signals_basename(basename: str) -> tuple[int | None, int | None]:
 
 
 def _load_signals(signals_path: str):
-    """Read gaze (POR), timestamps (T), and per-sample frame indices."""
+    """Read gaze (POR), timestamps (T), and per-sample frame indices.
+
+    SciPy is imported lazily (see :func:`feature_extraction.apply_savgol_filter`)
+    so the browser build only fetches it when a GiW dataset is actually loaded.
+    """
+    from scipy.io import loadmat
+
     data = loadmat(signals_path, simplify_cells=True)
     process = data["ProcessData"]
 
@@ -183,6 +188,8 @@ def _load_signals(signals_path: str):
 
 def _load_and_collapse_labels(label_paths: list[str], trial_id: int | None) -> np.ndarray:
     """Apply priority rule, then collapse FIXATION ∪ FOLLOWING → 1, else → 0."""
+    from scipy.io import loadmat
+
     by_id: dict[int, np.ndarray] = {}
     for path in label_paths:
         basename = os.path.basename(path)

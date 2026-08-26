@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..utils import binary_f1
+
 
 _TEMPLATE_PATH = Path(__file__).parent / "_video_template.html"
 with open(_TEMPLATE_PATH, "r", encoding="utf-8") as _f:
@@ -117,10 +119,9 @@ def generate_video_gaze_visualization(
 
     # GT comparison stats (reuse the index-aligned array built above)
     if gt_aligned_arr is not None:
-        from sklearn.metrics import f1_score
         pred = (df["event_type"] == "Fixation").astype(int).values
-        stats["f1_fixation"] = round(float(f1_score(gt_aligned_arr, pred, pos_label=1, zero_division=0)), 4)
-        stats["f1_saccade"] = round(float(f1_score(gt_aligned_arr, pred, pos_label=0, zero_division=0)), 4)
+        stats["f1_fixation"] = round(binary_f1(gt_aligned_arr, pred, pos_label=1), 4)
+        stats["f1_saccade"] = round(binary_f1(gt_aligned_arr, pred, pos_label=0), 4)
 
     has_gt = gt_labels_series is not None
 

@@ -124,6 +124,48 @@ def compute_mad(velocity):
 
 
 # ---------------------------------------------------------------------------
+# Scoring
+# ---------------------------------------------------------------------------
+
+def binary_f1(y_true, y_pred, pos_label=1):
+    """F1 score for one class of a binary labelling.
+
+    Matches ``sklearn.metrics.f1_score(y_true, y_pred, pos_label=pos_label,
+    zero_division=0)`` — including returning ``0.0`` rather than raising when
+    the class is absent from both arrays. Reimplemented here so the pipeline
+    does not pull in scikit-learn, which costs ~6 MB of wasm in the browser
+    build for this one function.
+
+    Args:
+        y_true: Ground-truth labels (array-like of 0/1).
+        y_pred: Predicted labels (array-like of 0/1), same length.
+        pos_label: Which label counts as the positive class.
+
+    Returns:
+        F1 as a float in ``[0, 1]``.
+    """
+    true_arr = np.asarray(y_true).reshape(-1)
+    pred_arr = np.asarray(y_pred).reshape(-1)
+    if len(true_arr) != len(pred_arr):
+        raise ValueError(
+            f"y_true and y_pred must be the same length; "
+            f"got {len(true_arr)} and {len(pred_arr)}"
+        )
+
+    is_true = true_arr == pos_label
+    is_pred = pred_arr == pos_label
+
+    true_positives = int(np.sum(is_true & is_pred))
+    false_positives = int(np.sum(~is_true & is_pred))
+    false_negatives = int(np.sum(is_true & ~is_pred))
+
+    denominator = 2 * true_positives + false_positives + false_negatives
+    if denominator == 0:
+        return 0.0
+    return float(2 * true_positives / denominator)
+
+
+# ---------------------------------------------------------------------------
 # Post-processing of detection output
 # ---------------------------------------------------------------------------
 

@@ -1,11 +1,17 @@
-"""OpenGazeLab event-detection backend package.
+"""OpenGazeLab event-detection package.
 
-Public surface (what ``main.py`` imports):
+Runs unchanged both natively (notebook / CLI, via ``pip install -e backend``)
+and in the browser under Pyodide. The browser entry points live in
+:mod:`opengazelab.web_api`; it is deliberately *not* imported here so that
+importing this package never requires Plotly.
+
+Public surface:
 
 * :class:`EventDetection` — orchestrates fixation/saccade detection.
 * :class:`EyeTrackingVisualizer` — wraps the visualization plotters.
 * CSV helpers — :func:`load_csv_gaze_data`, :func:`detect_column_mapping`, etc.
-* Head-mounted helpers — :func:`load_npy_dataset`, :func:`extract_video_metadata`.
+* Head-mounted helpers — :func:`load_npy_dataset`, :func:`extract_video_metadata`,
+  :func:`register_video_metadata`.
 * :func:`generate_video_gaze_visualization` — head-mounted overlay video.
 """
 
@@ -19,16 +25,20 @@ from .preprocess_csv import (
     load_csv_gaze_data,
 )
 from .preprocess_headmounted import (
+    clear_video_metadata,
     extract_video_metadata,
     load_giw_dataset,
     load_head_mounted_dataset,
     load_npy_dataset,
+    register_video_metadata,
 )
 from .visualization import (
     generate_video_gaze_visualization,
     plot_gaze_points_and_fixations,
     plot_gaze_with_time_scrolling,
 )
+
+__version__ = "1.0.0"
 
 
 class EyeTrackingVisualizer:
@@ -66,6 +76,8 @@ __all__ = [
     "load_giw_dataset",
     "load_head_mounted_dataset",
     "extract_video_metadata",
+    "register_video_metadata",
+    "clear_video_metadata",
     # Visualization
     "generate_video_gaze_visualization",
 ]
