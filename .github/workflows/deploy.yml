@@ -44,11 +44,11 @@ jobs:
           # published under a different name still resolves correctly.
           VITE_BASE: /${{ github.event.repository.name }}/
 
-      # enablement turns Pages on via the API if it isn't already, so the very
-      # first push works without visiting the repository settings by hand.
+      # Reads the repository's existing Pages configuration. Pages must already
+      # be set to "GitHub Actions" in Settings → Pages; auto-enabling it from
+      # here needs a write-scoped token, which repositories don't grant by
+      # default.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
