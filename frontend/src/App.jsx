@@ -93,6 +93,36 @@ const fileExtension = (name) => {
     return match ? match[1].toLowerCase() : 'png';
 };
 
+/**
+ * Per-algorithm guidance for the Detection Threshold box.
+ *
+ * The same field means two different quantities — a dispersion in pixels for
+ * I-DT, a velocity in px/ms for I-VT — and the values differ by more than an
+ * order of magnitude. A fixed placeholder invites entering an I-DT number
+ * while I-VT is selected, which classifies every sample as a fixation and
+ * silently reports zero saccades rather than failing.
+ *
+ * The head-mounted numbers are the per-algorithm bests from the DD parameter
+ * sweep documented in the README. No equivalent sweep exists for the
+ * stationary I-VT path, so that one carries units only rather than an
+ * invented figure.
+ */
+const THRESHOLD_GUIDANCE = {
+    stationary: {
+        idt: { placeholder: '125', hint: 'Dispersion, in pixels' },
+        ivt: { placeholder: '', hint: 'Velocity, in px/ms' },
+        '': { placeholder: '', hint: 'Units depend on the algorithm' },
+    },
+    headmounted: {
+        idt: { placeholder: '30', hint: 'Relative dispersion, in pixels' },
+        ivt: { placeholder: '1.5', hint: 'Relative velocity, in px/ms' },
+        '': { placeholder: '', hint: 'Units depend on the algorithm' },
+    },
+};
+
+const thresholdGuidance = (mode, algorithm) =>
+    THRESHOLD_GUIDANCE[mode][algorithm] ?? THRESHOLD_GUIDANCE[mode][''];
+
 const STAGE_LABELS = {
     runtime: 'Downloading the Python runtime (one-time, then cached)',
     packages: 'Loading scientific packages',
@@ -446,9 +476,12 @@ function App() {
                                         id="detect-threshold"
                                         value={detectionThreshold}
                                         onChange={setDetectionThreshold}
-                                        placeholder="125"
+                                        placeholder={thresholdGuidance('stationary', algorithm).placeholder}
                                         className="input-field"
                                     />
+                                    <p className="field-hint">
+                                        {thresholdGuidance('stationary', algorithm).hint}
+                                    </p>
                                 </div>
 
                                 <div className="control-group">
@@ -599,9 +632,12 @@ function App() {
                                         id="hm-threshold"
                                         value={hmThreshold}
                                         onChange={setHmThreshold}
-                                        placeholder="30"
+                                        placeholder={thresholdGuidance('headmounted', hmAlgorithm).placeholder}
                                         className="input-field"
                                     />
+                                    <p className="field-hint">
+                                        {thresholdGuidance('headmounted', hmAlgorithm).hint}
+                                    </p>
                                 </div>
 
                                 <div className="control-group threshold-extras">

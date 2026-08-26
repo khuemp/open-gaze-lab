@@ -2,9 +2,12 @@ name: Deploy to GitHub Pages
 
 # Builds the static site and publishes it. This runs on push — visitors never
 # trigger a build, they just download the prebuilt files Pages serves.
+# main only: the github-pages environment restricts deployments to the default
+# branch, so runs from other branches build fine and then fail at the deploy
+# step. Use workflow_dispatch to publish manually.
 on:
   push:
-    branches: [main, web_based]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
